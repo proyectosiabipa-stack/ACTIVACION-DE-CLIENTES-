@@ -1,4 +1,4 @@
-const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbz.../exec";
+const REMOTE_DATA_URL = "https://script.google.com/macros/s/ELIMINADO/exec";
 
 let data = window.ACTIVATION_DATA || null;
 let detail = data ? data.detail || [] : [];
