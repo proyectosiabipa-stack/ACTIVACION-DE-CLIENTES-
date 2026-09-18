@@ -1,4 +1,4 @@
-const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbzrMwzeQve1Jza0iSIJnRMZzipBb6LAoZ9YFRzL3llOLYnaGrul8MAXOQJ32yTJwXMm/exec";
+const REMOTE_DATA_URL = "";
 
 let data = window.ACTIVATION_DATA || null;
 let detail = data ? data.detail || [] : [];
@@ -130,6 +130,7 @@ document.getElementById("closeDetailBtn").addEventListener("click", () => {
   state.selectedClient = null;
   renderDetailPanel([]);
 });
+document.getElementById("exportBtn")?.addEventListener("click", downloadCSV);
 
 activeFilterContainer.addEventListener("click", event => {
   const chip = event.target.closest("[data-clear-filter]");
@@ -164,7 +165,7 @@ function updateDayRangeUI() {
   const maxPercent = (maxValue / 365) * 100;
   daysRange.fill.style.left = `${minPercent}%`;
   daysRange.fill.style.width = `${Math.max(maxPercent - minPercent, 2)}%`;
-  daysRange.label.textContent = `${minValue} - ${maxValue} días`;
+  daysRange.label.textContent = `${minValue} - ${maxValue === 365 ? "365+" : maxValue} días`;
 }
 
 function currentRows() {
@@ -172,12 +173,12 @@ function currentRows() {
   const minDays = Number(daysRange.min.value);
   const maxDays = Number(daysRange.max.value);
   return detail.filter(row => {
-    const rowDays = Number(row.dias_sin_facturar ?? 9999);
+    const rowDays = row.dias_sin_facturar === "" || row.dias_sin_facturar == null ? 365 : Number(row.dias_sin_facturar);
     if (rowDays < minDays || rowDays > maxDays) return false;
-    if (filters.seller.value && row.vendedor !== filters.seller.value) return false;
-    if (filters.zone.value && row.zona !== filters.zone.value) return false;
-    if (filters.type.value && row.tipo_cliente !== filters.type.value) return false;
-    if (filters.segment.value && row.segmento !== filters.segment.value) return false;
+    if (filters.seller.value && normalizeLabel(row.vendedor) !== filters.seller.value) return false;
+    if (filters.zone.value && normalizeLabel(row.zona) !== filters.zone.value) return false;
+    if (filters.type.value && normalizeLabel(row.tipo_cliente) !== filters.type.value) return false;
+    if (filters.segment.value && normalizeLabel(row.segmento) !== filters.segment.value) return false;
     if (filters.status.value && row.estado_facturacion !== filters.status.value) return false;
     if (q) {
       const hay = `${row.cliente} ${row.codigo} ${row.vendedor} ${row.zona} ${row.tipo_cliente} ${row.segmento}`.toUpperCase();
@@ -544,7 +545,7 @@ async function loadData() {
   }
 
   const candidates = [
-    REMOTE_DATA_URL,
+    ...(REMOTE_DATA_URL ? [REMOTE_DATA_URL] : []),
     "data.json",
     "./data.json",
   ];
