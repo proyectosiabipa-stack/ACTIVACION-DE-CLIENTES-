@@ -131,6 +131,18 @@ document.getElementById("closeDetailBtn").addEventListener("click", () => {
   renderDetailPanel([]);
 });
 document.getElementById("exportBtn")?.addEventListener("click", downloadCSV);
+const filtersToggle = document.getElementById("filtersToggle");
+const filterDock = document.querySelector(".filterDock");
+filtersToggle?.addEventListener("click", () => {
+  const collapsed = filterDock.classList.toggle("filtersCollapsed");
+  filtersToggle.setAttribute("aria-expanded", String(!collapsed));
+  filtersToggle.textContent = collapsed ? "Mostrar filtros ↓" : "Ocultar filtros ↑";
+});
+if (window.matchMedia("(max-width: 760px)").matches) {
+  filterDock?.classList.add("filtersCollapsed");
+  filtersToggle?.setAttribute("aria-expanded", "false");
+  if (filtersToggle) filtersToggle.textContent = "Mostrar filtros ↓";
+}
 
 activeFilterContainer.addEventListener("click", event => {
   const chip = event.target.closest("[data-clear-filter]");
@@ -402,12 +414,20 @@ function renderExecutiveText(t, rows) {
     `La mayor carga de clientes está en ${bestSeller?.name || "sin vendedor"} y la zona con más clientes filtrados es ${bestZone?.name || "sin zona"}.`;
 }
 
-function renderBars(id, rows, stacked) {
+function renderBars(id, rows, stacked, valueFormatter) {
   const max = Math.max(1, ...rows.map(r => r.clientes));
   document.getElementById(id).innerHTML = rows.map(r => {
     const activeWidth = stacked ? (r.activos / r.clientes) * 100 : (r.clientes / max) * 100;
     const inactiveWidth = stacked ? (r.inactivos / r.clientes) * 100 : 0;
-    const tooltipText = `${escapeHtml(r.name)}. De ${fmt.format(r.clientes)} clientes, ${fmt.format(r.activos)} compran recientemente y ${fmt.format(r.inactivos)} no compran recientemente.`;
+    const label = normalizeLabel(r.name);
+    const tooltipText = stacked
+      ? `${escapeHtml(label)}. De ${fmt.format(r.clientes)} clientes, ${fmt.format(r.activos)} compran recientemente y ${fmt.format(r.inactivos)} no compran recientemente.`
+      : `${escapeHtml(label)}: ${fmt.format(r.clientes)} clientes.`;
+    const valueText = valueFormatter
+      ? valueFormatter(r)
+      : stacked
+        ? `${fmt.format(r.activos)} compran / ${fmt.format(r.clientes)}`
+        : `${fmt.format(r.clientes)} clientes`;
     return `
       <div class="barRow" tabindex="0" data-tooltip="${tooltipText}">
         <strong title="${escapeHtml(r.name)}">${escapeHtml(shorten(r.name, 22))}</strong>
@@ -415,14 +435,14 @@ function renderBars(id, rows, stacked) {
           <span class="${stacked ? "activeBar" : "singleBar"}" style="width:${activeWidth}%"></span>
           ${stacked ? `<span class="inactiveBar" style="width:${inactiveWidth}%"></span>` : ""}
         </div>
-        <span class="barValue">${fmt.format(r.activos)} compran / ${fmt.format(r.clientes)}</span>
+        <span class="barValue">${valueText}</span>
       </div>`;
   }).join("");
 }
 
 function renderSegmentBars(rows) {
   const agg = aggregate(rows, "segmento");
-  renderBars("segmentBars", agg, false);
+  renderBars("segmentBars", agg, false, r => `${fmt.format(r.clientes)} clientes`);
 }
 
 function renderMonthBars(rows) {
@@ -433,7 +453,12 @@ function renderMonthBars(rows) {
     if (!byMonth.has(month)) byMonth.set(month, { name: month, clientes: 0, activos: 0, inactivos: 0 });
     byMonth.get(month).clientes += 1;
   });
-  renderBars("monthBars", [...byMonth.values()].filter(r => r.clientes).sort((a, b) => a.name.localeCompare(b.name)), false);
+  renderBars(
+    "monthBars",
+    [...byMonth.values()].filter(r => r.clientes).sort((a, b) => a.name.localeCompare(b.name)),
+    false,
+    r => `${fmt.format(r.clientes)} clientes compraron`
+  );
 }
 
 function renderTable(id, rows) {
