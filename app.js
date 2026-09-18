@@ -22,9 +22,16 @@ const fmt = new Intl.NumberFormat("es-VE", { maximumFractionDigits: 0 });
 const money = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = value => `${(value * 100).toFixed(1)}%`;
 const toNumber = value => Number(value ?? 0) || 0;
+const daysWithoutPurchase = row => {
+  if (row.dias_sin_facturar === "" || row.dias_sin_facturar == null) return 365;
+  return Math.max(0, Number(row.dias_sin_facturar) || 0);
+};
+const formatDaysWithoutPurchase = row => row.dias_sin_facturar === "" || row.dias_sin_facturar == null
+  ? "-"
+  : fmt.format(daysWithoutPurchase(row));
 
 function classifyCustomer(row) {
-  const days = Number(row.dias_sin_facturar ?? 0);
+  const days = daysWithoutPurchase(row);
   if (!row.ultima_factura || row.segmento === "NUNCA FACTURADO") return "NUNCA FACTURADO";
   if (days <= 30) return "ACTIVO 0-30 DIAS";
   if (days <= 60) return "RIESGO 31-60 DIAS";
@@ -167,17 +174,19 @@ clientTableEl.addEventListener("click", event => {
   if (!row) return;
   state.selectedClient = row.dataset.clientCode;
   renderDetailPanel(currentRows());
-  renderClientTable(currentRows().slice().sort((a, b) => Number(b.dias_sin_facturar || -1) - Number(a.dias_sin_facturar || -1)).slice(0, 500));
+  renderClientTable(currentRows().slice().sort((a, b) => daysWithoutPurchase(b) - daysWithoutPurchase(a)).slice(0, 500));
 });
 
 function updateDayRangeUI() {
-  const minValue = Number(daysRange.min.value);
-  const maxValue = Number(daysRange.max.value);
+  const minValue = Math.max(0, Number(daysRange.min.value) || 0);
+  const maxValue = Math.max(minValue, Number(daysRange.max.value) || 0);
+  daysRange.min.value = String(minValue);
+  daysRange.max.value = String(maxValue);
   const minPercent = (minValue / 365) * 100;
   const maxPercent = (maxValue / 365) * 100;
   daysRange.fill.style.left = `${minPercent}%`;
   daysRange.fill.style.width = `${Math.max(maxPercent - minPercent, 2)}%`;
-  daysRange.label.textContent = `${minValue} - ${maxValue === 365 ? "365+" : maxValue} días`;
+  daysRange.label.textContent = `Mostrar clientes entre ${minValue} y ${maxValue === 365 ? "365+" : maxValue} días sin compra`;
 }
 
 function currentRows() {
@@ -185,7 +194,7 @@ function currentRows() {
   const minDays = Number(daysRange.min.value);
   const maxDays = Number(daysRange.max.value);
   return detail.filter(row => {
-    const rowDays = row.dias_sin_facturar === "" || row.dias_sin_facturar == null ? 365 : Number(row.dias_sin_facturar);
+    const rowDays = daysWithoutPurchase(row);
     if (rowDays < minDays || rowDays > maxDays) return false;
     if (filters.seller.value && normalizeLabel(row.vendedor) !== filters.seller.value) return false;
     if (filters.zone.value && normalizeLabel(row.zona) !== filters.zone.value) return false;
@@ -260,7 +269,7 @@ function render() {
   renderMonthBars(rows);
   renderTable("zoneTable", aggregate(rows, "zona").slice(0, 30));
   renderTable("typeTable", aggregate(rows, "tipo_cliente").slice(0, 30));
-  renderClientTable(rows.slice().sort((a, b) => Number(b.dias_sin_facturar || -1) - Number(a.dias_sin_facturar || -1)).slice(0, 500));
+  renderClientTable(rows.slice().sort((a, b) => daysWithoutPurchase(b) - daysWithoutPurchase(a)).slice(0, 500));
   renderDetailPanel(rows);
   bindTooltipTargets();
 }
@@ -293,7 +302,7 @@ function renderHighlightStrip(rows, t) {
   const topSeller = aggregate(rows, "vendedor")[0];
   const topZone = aggregate(rows, "zona")[0];
   const risk = rows.filter(r => ["RIESGO 31-60 DIAS", "INACTIVO 61-90 DIAS", "DORMIDO 91-180 DIAS", "PERDIDO MAS DE 180 DIAS"].includes(r.segmento)).length;
-  const highPriority = rows.filter(r => Number(r.dias_sin_facturar || 0) > 90).length;
+  const highPriority = rows.filter(r => daysWithoutPurchase(r) > 90).length;
 
   const cards = [
     ["Mayor carga", topSeller?.name || "Sin vendedor", `${fmt.format(topSeller?.clientes || 0)} clientes`],
@@ -321,10 +330,10 @@ function renderHighlightStrip(rows, t) {
 
 function renderOpportunityGrid(rows) {
   const rangeBuckets = [
-    { label: "31-60 días", value: rows.filter(r => Number(r.dias_sin_facturar || 0) >= 31 && Number(r.dias_sin_facturar || 0) <= 60).length },
-    { label: "61-90 días", value: rows.filter(r => Number(r.dias_sin_facturar || 0) >= 61 && Number(r.dias_sin_facturar || 0) <= 90).length },
-    { label: "91-180 días", value: rows.filter(r => Number(r.dias_sin_facturar || 0) >= 91 && Number(r.dias_sin_facturar || 0) <= 180).length },
-    { label: "+180 días", value: rows.filter(r => Number(r.dias_sin_facturar || 0) > 180).length },
+    { label: "31-60 días", value: rows.filter(r => daysWithoutPurchase(r) >= 31 && daysWithoutPurchase(r) <= 60).length },
+    { label: "61-90 días", value: rows.filter(r => daysWithoutPurchase(r) >= 61 && daysWithoutPurchase(r) <= 90).length },
+    { label: "91-180 días", value: rows.filter(r => daysWithoutPurchase(r) >= 91 && daysWithoutPurchase(r) <= 180).length },
+    { label: "+180 días", value: rows.filter(r => daysWithoutPurchase(r) > 180).length },
   ];
 
   const totalBalance = rows.reduce((sum, row) => sum + Number(row.saldo_vencido || 0), 0);
@@ -366,7 +375,7 @@ function updateFilterSummary() {
   const dayMin = Number(daysRange.min.value);
   const dayMax = Number(daysRange.max.value);
   if (dayMin !== 0 || dayMax !== 365) {
-    chips.push({ label: `Días: ${dayMin} - ${dayMax}`, filter: "daysRange", value: `${dayMin}-${dayMax}` });
+    chips.push({ label: `Sin compra: ${dayMin} - ${dayMax === 365 ? "365+" : dayMax} días`, filter: "daysRange", value: `${dayMin}-${dayMax}` });
   }
   if (filters.search.value.trim()) chips.push({ label: `Texto: ${filters.search.value.trim()}`, filter: "search", value: filters.search.value.trim() });
 
@@ -442,7 +451,7 @@ function renderBars(id, rows, stacked, valueFormatter) {
 
 function renderSegmentBars(rows) {
   const agg = aggregate(rows, "segmento");
-  renderBars("segmentBars", agg, false, r => `${fmt.format(r.clientes)} clientes`);
+  renderBars("segmentBars", agg, false, r => `${fmt.format(r.clientes)} clientes en este rango`);
 }
 
 function renderMonthBars(rows) {
@@ -488,7 +497,7 @@ function renderClientTable(rows) {
         <td>${escapeHtml(shorten(normalizeLabel(r.tipo_cliente), 30))}</td>
         <td class="${r.estado_facturacion === "ACTIVO" ? "statusActive" : "statusInactive"}">${r.estado_facturacion === "ACTIVO" ? "COMPRA RECIENTE" : "SIN COMPRA RECIENTE"}</td>
         <td>${escapeHtml(simpleSegment(r.segmento))}</td>
-        <td class="num">${r.dias_sin_facturar === "" ? "-" : fmt.format(r.dias_sin_facturar)}</td>
+        <td class="num">${formatDaysWithoutPurchase(r)}</td>
         <td>${r.ultima_factura || "-"}</td>
         <td class="num">${money.format(Number(r.venta_total) || 0)}</td>
       </tr>`).join("")}</tbody>`;
@@ -516,7 +525,7 @@ function renderDetailPanel(rows) {
       <div><label>Zona</label><strong>${escapeHtml(normalizeLabel(selectedRow.zona) || "-")}</strong></div>
       <div><label>Tipo</label><strong>${escapeHtml(normalizeLabel(selectedRow.tipo_cliente) || "-")}</strong></div>
       <div><label>Última compra</label><strong>${selectedRow.ultima_factura || "-"}</strong></div>
-      <div><label>Días sin comprar</label><strong>${selectedRow.dias_sin_facturar === "" ? "-" : fmt.format(selectedRow.dias_sin_facturar)}</strong></div>
+      <div><label>Días sin comprar</label><strong>${formatDaysWithoutPurchase(selectedRow)}</strong></div>
       <div><label>Venta total</label><strong>${money.format(Number(selectedRow.venta_total) || 0)}</strong></div>
       <div><label>Saldo total</label><strong>${money.format(Number(selectedRow.saldo_total) || 0)}</strong></div>
       <div><label>Saldo vencido</label><strong>${money.format(Number(selectedRow.saldo_vencido) || 0)}</strong></div>
@@ -531,7 +540,10 @@ function renderDetailPanel(rows) {
 function downloadCSV() {
   const rows = currentRows();
   const headers = ["codigo","cliente","vendedor","zona","tipo_cliente","estado_facturacion","segmento","primera_factura","ultima_factura","dias_sin_facturar","venta_total","saldo_total"];
-  const csv = [headers.join(",")].concat(rows.map(row => headers.map(h => `"${String(row[h] ?? "").replaceAll('"', '""')}"`).join(","))).join("\n");
+  const csv = [headers.join(",")].concat(rows.map(row => headers.map(h => {
+    const value = h === "dias_sin_facturar" ? formatDaysWithoutPurchase(row) : row[h] ?? "";
+    return `"${String(value).replaceAll('"', '""')}"`;
+  }).join(","))).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
