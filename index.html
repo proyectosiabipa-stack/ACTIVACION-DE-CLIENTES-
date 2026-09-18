@@ -23,8 +23,8 @@
     </section>
     <section class="decisionGuide reveal"><div class="guideIcon">◎</div><div><strong>Lectura rápida para gerencia</strong><p>Los indicadores cambian al usar los filtros. Así puede revisar una zona, un vendedor o un tipo de cliente sin perder el contexto.</p></div><a href="#clientes">Ir al detalle <span>→</span></a></section>
     <section class="filterDock reveal" aria-label="Filtros de análisis">
-      <div class="filterTitle"><span>01</span><div><strong>Enfoque del análisis</strong><small>Seleccione la parte de la cartera que desea revisar</small></div></div>
-      <div class="filters">
+      <div class="filterTitle"><span>01</span><div><strong>Enfoque del análisis</strong><small>Seleccione la parte de la cartera que desea revisar</small></div><button id="filtersToggle" class="filtersToggle" type="button" aria-expanded="true">Ocultar filtros ↑</button></div>
+      <div class="filters" id="filtersBody">
         <label>Vendedor<select id="sellerFilter"></select></label><label>Zona<select id="zoneFilter"></select></label><label>Tipo de cliente<select id="typeFilter"></select></label><label>Tiempo sin compra<select id="segmentFilter"></select></label>
         <label>Situación<select id="statusFilter"><option value="">Todos</option><option value="ACTIVO">Compra reciente</option><option value="INACTIVO">Sin compra reciente</option></select></label>
         <label class="searchBox">Buscar cliente<input id="searchInput" type="search" placeholder="Nombre, código, zona…"></label>
