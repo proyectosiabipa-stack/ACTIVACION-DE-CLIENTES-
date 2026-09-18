@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071a14">
-  <title>BIPA · Centro de inteligencia comercial</title><link rel="stylesheet" href="styles.css">
+  <title>BIPA · Centro de inteligencia comercial</title><link rel="stylesheet" href="styles.css?v=20260918-2">
 </head>
 <body>
   <div class="ambient ambientOne"></div><div class="ambient ambientTwo"></div>
@@ -28,7 +28,7 @@
         <label>Vendedor<select id="sellerFilter"></select></label><label>Zona<select id="zoneFilter"></select></label><label>Tipo de cliente<select id="typeFilter"></select></label><label>Tiempo sin compra<select id="segmentFilter"></select></label>
         <label>Situación<select id="statusFilter"><option value="">Todos</option><option value="ACTIVO">Compra reciente</option><option value="INACTIVO">Sin compra reciente</option></select></label>
         <label class="searchBox">Buscar cliente<input id="searchInput" type="search" placeholder="Nombre, código, zona…"></label>
-        <label class="rangeFilter">Días sin comprar<div class="rangeBox"><div class="rangeTrackWrap"><div id="rangeFill" class="rangeFill"></div></div><div class="rangeInputs"><input id="dayMin" type="range" min="0" max="365" value="0"><input id="dayMax" type="range" min="0" max="365" value="365"></div><div class="rangeSummary"><span id="dayRangeLabel">0 - 365+ días</span><button type="button" id="clearDayRangeBtn" class="linkButton">Restablecer</button></div></div></label>
+        <label class="rangeFilter">Rango de días sin compra<div class="rangeBox"><div class="rangeTrackWrap"><div id="rangeFill" class="rangeFill"></div></div><div class="rangeInputs"><input id="dayMin" type="range" min="0" max="365" value="0"><input id="dayMax" type="range" min="0" max="365" value="365"></div><div class="rangeSummary"><span id="dayRangeLabel">Mostrar clientes entre 0 y 365+ días sin compra</span><button type="button" id="clearDayRangeBtn" class="linkButton">Restablecer</button></div></div></label>
         <button id="resetBtn" class="resetButton" type="button">Limpiar todo</button>
       </div>
       <div class="filterSummary"><span class="summaryLabel">Vista actual</span><div id="activeFilters" class="filterChips"></div></div>
@@ -65,5 +65,5 @@
     <aside class="detailPanel" id="detailPanel"><div class="panelHead"><div><span class="panelTag">Ficha individual</span><h2>Detalle del cliente</h2><p id="detailClientTitle">Seleccione un cliente.</p></div><button id="closeDetailBtn" class="ghostButton">Cerrar ×</button></div><div id="detailClientContent" class="detailContent"></div></aside>
     <footer><span>BIPA · Inteligencia comercial</span><p>Estado calculado exclusivamente a partir de la facturación registrada.</p></footer>
   </main>
-  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="data.js"></script><script src="app.js"></script>
+  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="data.js?v=20260918-2"></script><script src="app.js?v=20260918-2"></script>
 </body></html>
