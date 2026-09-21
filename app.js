@@ -1008,8 +1008,17 @@ function escapeHtml(text) {
   return String(text ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
 
+function showDataLoadMessage(title, message) {
+  const headline = document.getElementById("executiveHeadline");
+  const text = document.getElementById("executiveText");
+  const period = document.getElementById("periodText");
+  if (headline) headline.textContent = title;
+  if (text) text.textContent = message;
+  if (period) period.textContent = "Sin datos cargados";
+}
+
 function applyData(payload) {
-  if (!payload || !Array.isArray(payload.detail)) return false;
+  if (!payload || !Array.isArray(payload.detail) || !payload.detail.length) return false;
   data = payload;
   detail = payload.detail || [];
   refreshFilterOptions();
@@ -1063,9 +1072,18 @@ async function boot() {
     data = { start: "", cutoff: "", detail: [] };
     detail = [];
     refreshFilterOptions();
-    render();
+    showDataLoadMessage(
+      "No se encontraron datos para mostrar.",
+      "El portal no recibió información de Google Sheets y tampoco encontró un respaldo válido. Suba el archivo data.js actualizado a GitHub o revise la publicación del Apps Script."
+    );
   }
-  refreshFromRemote();
+  const remoteLoaded = await refreshFromRemote();
+  if (!hasLocalData && !remoteLoaded) {
+    showDataLoadMessage(
+      "No se encontraron datos para mostrar.",
+      "El portal no recibió información de Google Sheets y tampoco encontró un respaldo válido. Suba data.js junto con index.html, app.js y styles.css."
+    );
+  }
 }
 
 boot();
