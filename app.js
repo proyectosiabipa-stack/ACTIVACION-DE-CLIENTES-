@@ -1015,12 +1015,27 @@ function showDataLoadMessage(title, message) {
   if (headline) headline.textContent = title;
   if (text) text.textContent = message;
   if (period) period.textContent = "Sin datos cargados";
+  setLiveStatus("error", "Sin conexión a Google Sheets", "No se pudo leer la información en vivo.");
+}
+
+function setLiveStatus(kind, label, detailText = "") {
+  const badge = document.getElementById("liveBadge");
+  const badgeText = document.getElementById("liveBadgeText");
+  const updated = document.getElementById("dataUpdatedAt");
+  if (badge) badge.className = `liveBadge ${kind}`;
+  if (badgeText) badgeText.textContent = label;
+  if (updated && detailText) updated.textContent = detailText;
 }
 
 function applyData(payload) {
   if (!payload || !Array.isArray(payload.detail) || !payload.detail.length) return false;
   data = payload;
   detail = payload.detail || [];
+  const generated = payload.generated_at ? new Date(payload.generated_at) : null;
+  const generatedText = generated && !Number.isNaN(generated.getTime())
+    ? `Lectura en vivo: ${generated.toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`
+    : "Lectura en vivo desde Google Sheets";
+  setLiveStatus("live", "Conectado a Google Sheets", generatedText);
   refreshFilterOptions();
   render();
   return true;
@@ -1074,7 +1089,7 @@ async function refreshFromRemote() {
     const payload = await loadJsonpWithTimeout(REMOTE_DATA_URL);
     return applyData(payload);
   } catch (error) {
-    console.warn("No se pudo actualizar desde Google Sheets. Se conserva el respaldo local.", error);
+    console.warn("No se pudo actualizar desde Google Sheets.", error);
     return false;
   }
 }
@@ -1097,8 +1112,21 @@ async function loadLocalFallback() {
 }
 
 async function boot() {
+  const refreshButton = document.getElementById("dataRefreshButton");
+  if (refreshButton) refreshButton.addEventListener("click", async () => {
+    refreshButton.disabled = true;
+    refreshButton.textContent = "Actualizando…";
+    setLiveStatus("loading", "Consultando Google Sheets…", "Espere un momento mientras se lee la hoja.");
+    const ok = await refreshFromRemote();
+    if (!ok) setLiveStatus("error", "No se pudo actualizar", "Revise la publicación del Apps Script y vuelva a intentar.");
+    refreshButton.disabled = false;
+    refreshButton.textContent = "Actualizar datos ahora";
+  });
   const remoteLoadedFirst = await refreshFromRemote();
   const hasLocalData = remoteLoadedFirst ? true : await loadLocalFallback();
+  if (!remoteLoadedFirst && hasLocalData) {
+    setLiveStatus("offline", "Mostrando respaldo local", "Estos datos no son en tiempo real. Revise la conexión a Google Sheets.");
+  }
   if (!hasLocalData) {
     data = { start: "", cutoff: "", detail: [] };
     detail = [];

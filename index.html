@@ -19,7 +19,7 @@
         <p class="lead">Una lectura clara de quién compra, quién está dejando de comprar y qué oportunidades debe atender primero el equipo comercial.</p>
         <div class="heroLegend"><span><i class="dot active"></i> Compra reciente</span><span><i class="dot risk"></i> Requiere seguimiento</span><span><i class="dot vacant"></i> Vacante / por confirmar</span></div>
       </div>
-      <aside class="heroPanel"><div class="liveBadge"><i></i> Datos actualizados</div><span>Periodo analizado</span><strong id="periodText">—</strong><hr><small>La asignación comercial viene de la hoja CLIENTES: verde es vendedor confirmado, rojo es vacante o por confirmar.</small></aside>
+      <aside class="heroPanel"><div class="liveBadge" id="liveBadge"><i></i><span id="liveBadgeText">Conectando con Google Sheets…</span></div><span>Periodo analizado</span><strong id="periodText">—</strong><small id="dataUpdatedAt" class="dataUpdatedAt">Actualizando información…</small><hr><small>La asignación comercial viene de la hoja CLIENTES: verde es vendedor confirmado, rojo es vacante o por confirmar.</small></aside>
     </section>
     <section class="decisionGuide reveal dashboardOnly"><div class="guideIcon">◎</div><div><strong>Lectura rápida para gerencia</strong><p>Los indicadores cambian al usar los filtros. Así puede revisar una zona, un vendedor o un tipo de cliente sin perder el contexto.</p></div><a href="#clientes">Ir al detalle <span>→</span></a></section>
     <section class="filterDock reveal dashboardOnly" aria-label="Filtros de análisis">
@@ -38,7 +38,7 @@
       <div class="kpis" id="kpis"></div><div class="highlightStrip" id="highlightStrip"></div>
     </section>
     <section class="executivePanel reveal dashboardOnly">
-      <div class="execText"><span class="eyebrow soft">Conclusión automática</span><h2 id="executiveHeadline">Analizando la cartera comercial…</h2><p id="executiveText"></p></div>
+      <div class="execText"><span class="eyebrow soft">Conclusión automática</span><h2 id="executiveHeadline">Analizando la cartera comercial…</h2><p id="executiveText"></p><button class="secondaryButton dataRefreshButton" id="dataRefreshButton" type="button">Actualizar datos ahora</button></div>
       <div class="donutGrid">
         <article class="donutCard"><div class="donutChart" id="donutActiveChart"><div class="donutInner"><strong id="donutActiveValue">0%</strong><span>Activos</span></div></div><small>Cartera saludable</small></article>
         <article class="donutCard"><div class="donutChart" id="donutRiskChart"><div class="donutInner"><strong id="donutRiskValue">0%</strong><span>En riesgo</span></div></div><small>Necesita seguimiento</small></article>
@@ -88,5 +88,6 @@
     <aside class="detailPanel dashboardOnly" id="detailPanel"><div class="panelHead"><div><span class="panelTag">Ficha individual</span><h2>Detalle del cliente</h2><p id="detailClientTitle">Seleccione un cliente.</p></div><button id="closeDetailBtn" class="ghostButton">Cerrar ×</button></div><div id="detailClientContent" class="detailContent"></div></aside>
     <footer><span>BIPA · Inteligencia comercial</span><p>Estado calculado exclusivamente a partir de la facturación registrada.</p></footer>
   </main>
-  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="data.js?v=20260921-3"></script><script src="app.js?v=20260921-21"></script>
+  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="data.js?v=20260921-3"></script><script src="app.js?v=20260921-22"></script>
 </body></html>
+
