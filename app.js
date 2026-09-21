@@ -1038,10 +1038,40 @@ async function fetchJsonWithTimeout(url, timeout = 6500) {
   }
 }
 
+function loadJsonpWithTimeout(url, timeout = 8500) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `bipaData_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const separator = url.includes("?") ? "&" : "?";
+    const script = document.createElement("script");
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("Tiempo de espera agotado leyendo Google Sheets"));
+    }, timeout);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = payload => {
+      cleanup();
+      resolve(payload);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("No se pudo cargar el script de datos"));
+    };
+    script.src = `${url}${separator}callback=${encodeURIComponent(callbackName)}&t=${Date.now()}`;
+    document.head.appendChild(script);
+  });
+}
+
 async function refreshFromRemote() {
   if (!REMOTE_DATA_URL) return false;
   try {
-    const payload = await fetchJsonWithTimeout(`${REMOTE_DATA_URL}?t=${Date.now()}`);
+    const payload = await loadJsonpWithTimeout(REMOTE_DATA_URL);
     return applyData(payload);
   } catch (error) {
     console.warn("No se pudo actualizar desde Google Sheets. Se conserva el respaldo local.", error);
@@ -1067,7 +1097,8 @@ async function loadLocalFallback() {
 }
 
 async function boot() {
-  const hasLocalData = await loadLocalFallback();
+  const remoteLoadedFirst = await refreshFromRemote();
+  const hasLocalData = remoteLoadedFirst ? true : await loadLocalFallback();
   if (!hasLocalData) {
     data = { start: "", cutoff: "", detail: [] };
     detail = [];
@@ -1077,8 +1108,7 @@ async function boot() {
       "El portal no recibió información de Google Sheets y tampoco encontró un respaldo válido. Suba el archivo data.js actualizado a GitHub o revise la publicación del Apps Script."
     );
   }
-  const remoteLoaded = await refreshFromRemote();
-  if (!hasLocalData && !remoteLoaded) {
+  if (!hasLocalData) {
     showDataLoadMessage(
       "No se encontraron datos para mostrar.",
       "El portal no recibió información de Google Sheets y tampoco encontró un respaldo válido. Suba data.js junto con index.html, app.js y styles.css."
