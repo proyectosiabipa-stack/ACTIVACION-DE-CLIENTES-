@@ -1,4 +1,4 @@
-const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbzrMwzeQve1Jza0iSIJnRMZzipBb6LAoZ9YFRzL3llOLYnaGrul8MAXOQJ32yTJwXMm/exec";
+const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbwOz9ZSl8RsQVqIX9Zz06eQ6v2bI7gzMPKhn_HIpefbcNXzXFDfgh00ZBpJkHabNuwp/exec";
 
 let data = null;
 let detail = [];
