@@ -1008,43 +1008,64 @@ function escapeHtml(text) {
   return String(text ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
 
-async function loadData() {
-  const candidates = [
-    ...(REMOTE_DATA_URL ? [REMOTE_DATA_URL] : []),
-    "data.json",
-    "./data.json",
-  ];
+function applyData(payload) {
+  if (!payload || !Array.isArray(payload.detail)) return false;
+  data = payload;
+  detail = payload.detail || [];
+  refreshFilterOptions();
+  render();
+  return true;
+}
 
-  for (const url of candidates) {
+async function fetchJsonWithTimeout(url, timeout = 6500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    if (!response.ok) throw new Error(`Respuesta ${response.status}`);
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function refreshFromRemote() {
+  if (!REMOTE_DATA_URL) return false;
+  try {
+    const payload = await fetchJsonWithTimeout(`${REMOTE_DATA_URL}?t=${Date.now()}`);
+    return applyData(payload);
+  } catch (error) {
+    console.warn("No se pudo actualizar desde Google Sheets. Se conserva el respaldo local.", error);
+    return false;
+  }
+}
+
+async function loadLocalFallback() {
+  if (window.ACTIVATION_DATA && Array.isArray(window.ACTIVATION_DATA.detail)) {
+    return applyData(window.ACTIVATION_DATA);
+  }
+
+  for (const url of ["data.json", "./data.json"]) {
     try {
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) continue;
-      const payload = await response.json();
-      if (payload && Array.isArray(payload.detail)) {
-        data = payload;
-        detail = payload.detail || [];
-        return;
-      }
+      const payload = await fetchJsonWithTimeout(url, 2500);
+      if (applyData(payload)) return true;
     } catch (error) {
-      console.warn(`No se pudo cargar ${url}:`, error);
+      console.warn(`No se pudo cargar respaldo ${url}:`, error);
     }
   }
 
-  if (window.ACTIVATION_DATA && Array.isArray(window.ACTIVATION_DATA.detail)) {
-    data = window.ACTIVATION_DATA;
-    detail = data.detail || [];
-    return;
-  }
-
-  console.error("Fallo al cargar datos del portal. Se usará una vista vacía.");
-  data = { start: "", cutoff: "", detail: [] };
-  detail = [];
+  return false;
 }
 
 async function boot() {
-  await loadData();
-  refreshFilterOptions();
-  render();
+  const hasLocalData = await loadLocalFallback();
+  if (!hasLocalData) {
+    data = { start: "", cutoff: "", detail: [] };
+    detail = [];
+    refreshFilterOptions();
+    render();
+  }
+  refreshFromRemote();
 }
 
 boot();
