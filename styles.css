@@ -77,12 +77,33 @@
 @media(max-width:520px){.feedbackList{grid-template-columns:1fr}}
 .sendToolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px;padding:18px 20px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 12px 34px rgba(12,42,31,.05)}
 .sendToolbar strong,.sendToolbar small{display:block}.sendToolbar strong{font:800 18px Manrope}.sendToolbar small{margin-top:4px;color:var(--muted);font-size:11px}
+.sellerPicker{display:grid;gap:5px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.sellerPicker select{height:44px;border:1px solid var(--line);border-radius:12px;background:#f8faf7;color:var(--ink);padding:0 12px}
+.sellerPicker small{font-size:9px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--muted)}
+.zonePicker{position:relative;min-width:260px;display:grid;gap:5px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.zonePicker>span{display:block}
+.zonePickerButton{width:100%;min-height:44px;padding:8px 42px 8px 12px;border:1px solid var(--line);border-radius:12px;background:#f8faf7;color:var(--ink);text-align:left;cursor:pointer;position:relative}
+.zonePickerButton:after{content:"⌄";position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--green)}
+.zonePickerButton strong,.zonePickerButton small{display:block}.zonePickerButton strong{font-size:12px}.zonePickerButton small{margin-top:1px;font-size:9px;color:var(--muted)}
+.zonePickerPanel{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:20;padding:12px;border:1px solid var(--line);border-radius:16px;background:white;box-shadow:0 18px 42px rgba(12,42,31,.16)}
+.zonePickerPanel input[type=search]{width:100%;height:40px;margin-bottom:10px;padding:0 11px;border:1px solid var(--line);border-radius:11px;background:#f8faf7;color:var(--ink);outline:0}
+.zonePickerPanel input[type=search]:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(32,178,107,.1);background:white}
+.zoneOptions{display:grid;gap:4px;max-height:210px;overflow:auto;padding-right:3px;text-transform:none;letter-spacing:0}
+.zoneOption{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:10px;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer}
+.zoneOption:hover{background:#f2fbf5}.zoneOption input{accent-color:var(--green)}
+.zoneNoResults{padding:12px;border-radius:10px;background:#f8faf7;color:var(--muted);font-size:12px;text-transform:none;letter-spacing:0}
+.selectedZoneChips{display:flex;flex-wrap:wrap;gap:5px;max-width:300px;text-transform:none;letter-spacing:0}
+.selectedZoneChips span,.selectedZoneChips button{border:0;border-radius:999px;padding:5px 8px;background:#eef7f1;color:var(--forest);font-size:9px;font-weight:800}
+.selectedZoneChips button{cursor:pointer}
 .sellerMessages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .sellerMessage{padding:20px;border:1px solid var(--line);border-radius:20px;background:white;box-shadow:var(--shadow)}
 .sellerMessage.empty{grid-column:1/-1}.sellerMessage.empty p{color:var(--muted);font-size:12px}
 .sellerMessageHead{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
 .sellerMessage h3{font:800 20px Manrope;margin:4px 0 4px;letter-spacing:-.03em}.sellerMessage p{margin:0;color:var(--muted);font-size:11px}
+.sellerActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .copyButton{height:38px;padding:0 13px;border:0;border-radius:11px;background:var(--deep);color:white;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+.pdfButton{height:38px;padding:0 13px;border:1px solid var(--line);border-radius:11px;background:#eef7f1;color:var(--forest);font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+.pdfButton:hover{border-color:var(--green);background:#ddf7e9}
 .sellerMessage ul{display:grid;gap:6px;margin:16px 0;padding:0;list-style:none}
 .sellerMessage li{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:10px;background:#f6f8f5;font-size:11px}
 .sellerMessage li span{color:#9a3412;font-weight:800;white-space:nowrap}
@@ -93,3 +114,58 @@ body.dashboardMode .sendOnly{display:none!important}
 body.sendMode #enviar{padding-top:34px}
 body.sendMode #exportBtn{display:none}
 nav a.active{color:var(--forest);font-weight:800}
+
+@media(max-width:760px){
+  .topbar{position:sticky;top:0;display:grid;grid-template-columns:1fr;gap:10px;height:auto;padding-top:10px;padding-bottom:10px}
+  .brand{justify-content:center}.brandMark{width:34px;height:34px;border-radius:10px}
+  .topbar nav{display:grid!important;grid-template-columns:1fr 1fr;gap:8px;width:100%;margin:0}
+  .topbar nav a{display:grid;place-items:center;min-height:42px;border:1px solid var(--line);border-radius:12px;background:white;font-size:12px}
+  .topbar nav a.active{background:var(--deep);color:white;border-color:var(--deep)}
+  .exportButton{display:none}
+  .shell{padding-top:10px}
+  body.sendMode .shell{padding-left:10px;padding-right:10px}
+  body.sendMode #enviar{padding-top:12px}
+  body.sendMode #enviar .sectionHeading{display:block;margin-bottom:12px}
+  body.sendMode #enviar .sectionHeading>div{padding-left:0}
+  body.sendMode #enviar .sectionNumber{display:none}
+  body.sendMode #enviar .eyebrow{margin-bottom:6px}
+  body.sendMode #enviar h2{font-size:1.45rem;line-height:1.15}
+  body.sendMode #enviar .sectionHeading>p{display:block;text-align:left;max-width:none;margin-top:8px;font-size:12px}
+  .sendToolbar{display:block;padding:14px;border-radius:16px;margin-bottom:10px}
+  .sendToolbar strong{font-size:15px;line-height:1.25}
+  .sendToolbar small{font-size:10px;line-height:1.35}
+  .sellerPicker{margin-top:12px}
+  .sellerPicker select{height:48px;font-size:14px}
+  .zonePicker{width:100%;min-width:0;margin-top:12px}
+  .zonePickerButton{min-height:50px}
+  .zonePickerPanel{position:static;margin-top:8px;box-shadow:none}
+  .zoneOptions{max-height:240px}
+  .selectedZoneChips{max-width:none}
+  .sendToolbar .resetButton{width:100%;height:48px;margin-top:12px}
+  .sellerMessages{grid-template-columns:1fr;gap:10px}
+  .sellerMessage{padding:14px;border-radius:16px;box-shadow:0 8px 24px rgba(12,42,31,.06)}
+  .sellerMessageHead{display:grid;grid-template-columns:1fr;gap:10px}
+  .sellerMessage h3{font-size:17px;line-height:1.15}
+  .sellerMessage p{font-size:10px;line-height:1.35}
+  .sellerActions{display:grid;grid-template-columns:1fr;gap:8px;justify-content:stretch}
+  .copyButton,.pdfButton{width:100%;height:48px;font-size:12px}
+  .sellerMessage ul{margin:12px 0;gap:5px}
+  .sellerMessage li{display:block;padding:9px 10px;font-size:11px;line-height:1.25}
+  .sellerMessage li span{display:block;margin-top:4px;white-space:normal;font-size:10px;color:var(--muted)}
+  .sellerMessage textarea{min-height:190px;max-height:310px;font-size:12px;line-height:1.45}
+  body.dashboardMode .hero{padding:24px 18px;border-radius:18px}
+  body.dashboardMode .hero h1{font-size:2rem;letter-spacing:-.03em}
+  body.dashboardMode .heroPanel{display:none}
+  body.dashboardMode .filterDock{position:relative;padding:13px;border-radius:16px}
+  body.dashboardMode .kpis{grid-template-columns:1fr 1fr;gap:8px}
+  body.dashboardMode .kpi{min-height:105px;padding:14px 12px;border-radius:14px}
+  body.dashboardMode .kpi strong{font-size:1.35rem}
+  body.dashboardMode .kpi small{display:none}
+  body.dashboardMode .highlightStrip,.dashboard,.tables{grid-template-columns:1fr}
+  body.dashboardMode .executivePanel{padding:18px;border-radius:16px}
+}
+
+@media(max-width:420px){
+  body.dashboardMode .kpis{grid-template-columns:1fr}
+  .sellerMessage textarea{min-height:170px}
+}

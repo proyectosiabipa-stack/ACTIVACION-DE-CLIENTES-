@@ -1,4 +1,4 @@
-const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbwClkqkHbpc4k9zqftHHVo-a1IgXMQcTk0u2cS_msrXX4bGvVCMpcRMgln6Z_Dyxyffrw/exec";
+const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbzrMwzeQve1Jza0iSIJnRMZzipBb6LAoZ9YFRzL3llOLYnaGrul8MAXOQJ32yTJwXMm/exec";
 
 let data = window.ACTIVATION_DATA || null;
 let detail = data ? data.detail || [] : [];
@@ -17,7 +17,7 @@ const daysRange = {
   label: document.getElementById("dayRangeLabel"),
   fill: document.getElementById("rangeFill"),
 };
-const state = { selectedClient: null };
+const state = { selectedClient: null, selectedSellerZones: new Set(), zoneSearch: "" };
 
 const fmt = new Intl.NumberFormat("es-VE", { maximumFractionDigits: 0 });
 const money = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -47,6 +47,13 @@ const detailPanel = document.getElementById("detailPanel");
 const detailClientTitle = document.getElementById("detailClientTitle");
 const detailClientContent = document.getElementById("detailClientContent");
 const tooltipEl = document.getElementById("tooltip");
+const sellerMessageFilter = document.getElementById("sellerMessageFilter");
+const zonePickerButton = document.getElementById("zonePickerButton");
+const zonePickerLabel = document.getElementById("zonePickerLabel");
+const zonePickerPanel = document.getElementById("zonePickerPanel");
+const zoneSearchInput = document.getElementById("zoneSearchInput");
+const zoneOptions = document.getElementById("zoneOptions");
+const selectedZoneChips = document.getElementById("selectedZoneChips");
 
 function showTooltip(event) {
   const target = event.currentTarget;
@@ -88,6 +95,14 @@ function normalizeLabel(value) {
     return "Sin asignación";
   }
   return text;
+}
+
+function searchKey(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
 }
 
 function unique(field) {
@@ -141,10 +156,52 @@ document.getElementById("closeDetailBtn").addEventListener("click", () => {
 });
 document.getElementById("exportBtn")?.addEventListener("click", downloadCSV);
 document.getElementById("copyAllSellerMessages")?.addEventListener("click", () => copyAllSellerMessages());
+sellerMessageFilter?.addEventListener("input", () => renderSellerMessages(detail));
+zonePickerButton?.addEventListener("click", () => toggleZonePicker());
+zoneSearchInput?.addEventListener("input", () => {
+  state.zoneSearch = zoneSearchInput.value;
+  syncSellerZoneFilter(detail);
+});
+zoneSearchInput?.addEventListener("keydown", event => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  const firstVisible = zoneOptions?.querySelector("[data-zone-option]");
+  if (!firstVisible) return;
+  firstVisible.checked = true;
+  state.selectedSellerZones.add(firstVisible.value);
+  renderSellerMessages(detail);
+});
+document.getElementById("clearSellerZones")?.addEventListener("click", () => {
+  state.selectedSellerZones.clear();
+  renderSellerMessages(detail);
+});
+selectedZoneChips?.addEventListener("click", event => {
+  const button = event.target.closest("[data-remove-zone]");
+  if (!button) return;
+  state.selectedSellerZones.delete(button.dataset.removeZone);
+  renderSellerMessages(detail);
+});
+zoneOptions?.addEventListener("change", event => {
+  const input = event.target.closest("[data-zone-option]");
+  if (!input) return;
+  if (input.checked) state.selectedSellerZones.add(input.value);
+  else state.selectedSellerZones.delete(input.value);
+  renderSellerMessages(detail);
+});
+document.addEventListener("click", event => {
+  const picker = document.getElementById("sellerZonePicker");
+  if (!picker || picker.contains(event.target)) return;
+  closeZonePicker();
+});
 document.getElementById("sellerMessages")?.addEventListener("click", event => {
   const button = event.target.closest("[data-copy-seller]");
-  if (!button) return;
-  copySellerMessage(button.dataset.copySeller);
+  if (button) {
+    copySellerMessage(button.dataset.copySeller);
+    return;
+  }
+  const pdfButton = event.target.closest("[data-pdf-seller]");
+  if (!pdfButton) return;
+  downloadSellerPdf(pdfButton.dataset.pdfSeller);
 });
 window.addEventListener("hashchange", applyViewMode);
 const filtersToggle = document.getElementById("filtersToggle");
@@ -288,7 +345,7 @@ function render() {
   renderTable("zoneTable", aggregate(rows, "zona").slice(0, 30));
   renderTable("typeTable", aggregate(rows, "tipo_cliente").slice(0, 30));
   renderClientTable(rows.slice().sort((a, b) => daysWithoutPurchase(b) - daysWithoutPurchase(a)).slice(0, 500));
-  renderSellerMessages(rows);
+  renderSellerMessages(detail);
   renderDetailPanel(rows);
   bindTooltipTargets();
   applyViewMode();
@@ -645,6 +702,17 @@ function sellerMessageGroups(rows) {
     .sort((a, b) => b.pending.length - a.pending.length || a.seller.localeCompare(b.seller));
 }
 
+function selectedSellerZones() {
+  return [...state.selectedSellerZones];
+}
+
+function zoneFilteredSellerRows(rows) {
+  const selectedZones = selectedSellerZones();
+  if (!selectedZones.length) return rows;
+  const zoneSet = new Set(selectedZones);
+  return rows.filter(row => zoneSet.has(normalizeLabel(row.zona)));
+}
+
 function buildSellerMessage(group) {
   const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
   const pendingCount = group.pending.length;
@@ -673,16 +741,23 @@ function renderSellerMessages(rows) {
   const summary = document.getElementById("sendSummary");
   if (!container || !summary) return;
 
-  const groups = sellerMessageGroups(rows);
-  const totalClients = groups.reduce((sum, group) => sum + group.pending.length, 0);
-  summary.textContent = `${fmt.format(totalClients)} clientes para activación mensual distribuidos en ${fmt.format(groups.length)} vendedores`;
+  syncSellerZoneFilter(rows);
+  const selectedZones = selectedSellerZones();
+  const filteredRows = zoneFilteredSellerRows(rows);
+  const groups = sellerMessageGroups(filteredRows);
+  syncSellerMessageFilter(groups);
+  const selectedSeller = sellerMessageFilter?.value || "";
+  const visibleGroups = selectedSeller ? groups.filter(group => group.seller === selectedSeller) : groups;
+  const totalClients = visibleGroups.reduce((sum, group) => sum + group.pending.length, 0);
+  const zoneText = selectedZones.length ? ` · ${fmt.format(selectedZones.length)} zona${selectedZones.length === 1 ? "" : "s"} seleccionada${selectedZones.length === 1 ? "" : "s"}` : " · todas las zonas";
+  summary.textContent = `${fmt.format(totalClients)} clientes para activación mensual distribuidos en ${fmt.format(visibleGroups.length)} vendedores${zoneText}`;
 
-  if (!groups.length) {
-    container.innerHTML = `<article class="sellerMessage empty"><h3>No hay clientes para activación mensual con los filtros actuales.</h3><p>Pruebe limpiar filtros o revisar vendedores confirmados.</p></article>`;
+  if (!visibleGroups.length) {
+    container.innerHTML = `<article class="sellerMessage empty"><h3>No hay clientes para activación mensual con los filtros actuales.</h3><p>Pruebe cambiar las zonas seleccionadas o revisar vendedores confirmados.</p></article>`;
     return;
   }
 
-  container.innerHTML = groups.map(group => {
+  container.innerHTML = visibleGroups.map(group => {
     const message = buildSellerMessage(group);
     const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
     const preview = group.pending.slice(0, 5).map(row => `<li>${escapeHtml(shorten(row.cliente, 48))}<span>${escapeHtml(shorten(normalizeLabel(row.zona), 22))}</span></li>`).join("");
@@ -690,12 +765,75 @@ function renderSellerMessages(rows) {
       <article class="sellerMessage">
         <div class="sellerMessageHead">
           <div><span class="panelTag">WhatsApp</span><h3>${escapeHtml(group.seller)}</h3><p>Cartera ${fmt.format(group.portfolio.length)} · activos ${fmt.format(activeThisMonth)} · faltan ${fmt.format(group.pending.length)}</p></div>
-          <button class="copyButton" type="button" data-copy-seller="${escapeHtml(group.seller)}">Copiar mensaje</button>
+          <div class="sellerActions">
+            <button class="copyButton" type="button" data-copy-seller="${escapeHtml(group.seller)}">Copiar mensaje</button>
+            <button class="pdfButton" type="button" data-pdf-seller="${escapeHtml(group.seller)}">Descargar PDF</button>
+          </div>
         </div>
         <ul>${preview}</ul>
         <textarea readonly>${escapeHtml(message)}</textarea>
       </article>`;
   }).join("");
+}
+
+function syncSellerZoneFilter(rows) {
+  if (!zoneOptions || !zonePickerLabel || !selectedZoneChips) return;
+  const zones = [...new Set(rows.map(row => normalizeLabel(row.zona)).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const validZones = new Set(zones);
+  [...state.selectedSellerZones].forEach(zone => {
+    if (!validZones.has(zone)) state.selectedSellerZones.delete(zone);
+  });
+  const selected = selectedSellerZones();
+  const search = searchKey(state.zoneSearch);
+  const visibleZones = search
+    ? zones.filter(zone => searchKey(zone).includes(search))
+    : zones;
+
+  if (zoneSearchInput && zoneSearchInput.value !== state.zoneSearch) {
+    zoneSearchInput.value = state.zoneSearch;
+  }
+  zonePickerLabel.textContent = selected.length ? `${fmt.format(selected.length)} zona${selected.length === 1 ? "" : "s"} seleccionada${selected.length === 1 ? "" : "s"}` : "Todas las zonas";
+  zoneOptions.innerHTML = visibleZones.length
+    ? visibleZones.map(zone => `
+      <label class="zoneOption">
+        <input type="checkbox" data-zone-option value="${escapeHtml(zone)}" ${state.selectedSellerZones.has(zone) ? "checked" : ""}>
+        <span>${escapeHtml(zone)}</span>
+      </label>`)
+      .join("")
+    : `<div class="zoneNoResults">No se encontró esa zona.</div>`;
+  selectedZoneChips.innerHTML = selected.length
+    ? selected
+      .sort((a, b) => a.localeCompare(b))
+      .map(zone => `<button type="button" data-remove-zone="${escapeHtml(zone)}">${escapeHtml(shorten(zone, 22))} ×</button>`)
+      .join("")
+    : `<span>Todas las zonas incluidas</span>`;
+}
+
+function toggleZonePicker() {
+  if (!zonePickerPanel || !zonePickerButton) return;
+  const nextOpen = zonePickerPanel.hidden;
+  zonePickerPanel.hidden = !nextOpen;
+  zonePickerButton.setAttribute("aria-expanded", String(nextOpen));
+  if (nextOpen) {
+    zoneSearchInput?.focus();
+  }
+}
+
+function closeZonePicker() {
+  if (!zonePickerPanel || !zonePickerButton) return;
+  zonePickerPanel.hidden = true;
+  zonePickerButton.setAttribute("aria-expanded", "false");
+}
+
+function syncSellerMessageFilter(groups) {
+  if (!sellerMessageFilter) return;
+  const currentValue = sellerMessageFilter.value;
+  sellerMessageFilter.innerHTML = `<option value="">Todos los vendedores</option>` + groups
+    .map(group => `<option value="${escapeHtml(group.seller)}">${escapeHtml(group.seller)} (${fmt.format(group.pending.length)})</option>`)
+    .join("");
+  if ([...sellerMessageFilter.options].some(option => option.value === currentValue)) {
+    sellerMessageFilter.value = currentValue;
+  }
 }
 
 async function copyText(text, button) {
@@ -712,16 +850,82 @@ async function copyText(text, button) {
 }
 
 function copySellerMessage(seller) {
-  const group = sellerMessageGroups(currentRows()).find(item => item.seller === seller);
+  const group = sellerMessageGroups(zoneFilteredSellerRows(detail)).find(item => item.seller === seller);
   if (!group) return;
   const button = document.querySelector(`[data-copy-seller="${CSS.escape(seller)}"]`);
   copyText(buildSellerMessage(group), button);
 }
 
 function copyAllSellerMessages() {
-  const groups = sellerMessageGroups(currentRows());
+  const selectedSeller = sellerMessageFilter?.value || "";
+  const groups = sellerMessageGroups(zoneFilteredSellerRows(detail)).filter(group => !selectedSeller || group.seller === selectedSeller);
   const text = groups.map(group => buildSellerMessage(group)).join("\n\n-----------------------------\n\n");
   copyText(text, document.getElementById("copyAllSellerMessages"));
+}
+
+function sellerPdfHtml(group) {
+  const selectedZones = selectedSellerZones();
+  const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
+  const pendingCount = group.pending.length;
+  const zoneLabel = selectedZones.length ? selectedZones.join(", ") : "Todas las zonas";
+  const generatedAt = new Date().toLocaleString("es-VE");
+  const rows = group.pending.map((row, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td><strong>${escapeHtml(row.cliente)}</strong><small>Cód. ${escapeHtml(row.codigo || "-")}</small></td>
+      <td>${escapeHtml(normalizeLabel(row.zona))}</td>
+      <td>${escapeHtml(simpleSegment(row.segmento))}</td>
+      <td class="num">${escapeHtml(formatDaysWithoutPurchase(row))}</td>
+      <td>${escapeHtml(row.ultima_factura || "Sin factura")}</td>
+    </tr>`).join("");
+
+  return `<!doctype html>
+  <html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <title>Activación mensual · ${escapeHtml(group.seller)}</title>
+    <style>
+      *{box-sizing:border-box}body{margin:0;padding:28px;color:#10231c;font-family:Arial,Helvetica,sans-serif;background:#f5f7f1}.page{max-width:1120px;margin:auto;background:white;border:1px solid #dfe7e2;border-radius:22px;overflow:hidden}.hero{padding:28px 32px;background:linear-gradient(135deg,#071a14,#0d3a2b);color:white}.eyebrow{margin:0 0 8px;color:#b7f45d;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.hero h1{margin:0;font-size:30px;line-height:1.05}.hero p{margin:10px 0 0;color:#c9d8d2}.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:18px 32px;background:#f8faf7;border-bottom:1px solid #dfe7e2}.card{padding:13px;border:1px solid #dfe7e2;border-radius:14px;background:white}.card span{display:block;color:#66766f;font-size:10px;font-weight:800;text-transform:uppercase}.card strong{display:block;margin-top:5px;font-size:18px}.content{padding:24px 32px}.note{margin:0 0 16px;padding:13px 15px;border-radius:13px;background:#eef7f1;color:#0d3a2b;font-size:13px;line-height:1.45}table{width:100%;border-collapse:collapse;font-size:11px}th{padding:10px 8px;background:#10231c;color:white;text-align:left;text-transform:uppercase;font-size:9px;letter-spacing:.06em}td{padding:10px 8px;border-bottom:1px solid #e8eee9;vertical-align:top}td small{display:block;margin-top:3px;color:#66766f}.num{text-align:right;white-space:nowrap}tr:nth-child(even) td{background:#fbfcfa}.footer{padding:14px 32px;color:#66766f;font-size:10px;border-top:1px solid #dfe7e2}@media print{body{padding:0;background:white}.page{border:0;border-radius:0}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}button{display:none}thead{display:table-header-group}}
+    </style>
+  </head>
+  <body>
+    <section class="page">
+      <div class="hero">
+        <p class="eyebrow">BIPA · Activación mensual</p>
+        <h1>${escapeHtml(group.seller)}</h1>
+        <p>Clientes pendientes por activar según los filtros actuales del portal.</p>
+      </div>
+      <div class="meta">
+        <div class="card"><span>Total cartera</span><strong>${fmt.format(group.portfolio.length)}</strong></div>
+        <div class="card"><span>Activos en el mes</span><strong>${fmt.format(activeThisMonth)}</strong></div>
+        <div class="card"><span>Pendientes</span><strong>${fmt.format(pendingCount)}</strong></div>
+        <div class="card"><span>Zonas filtradas</span><strong>${selectedZones.length ? fmt.format(selectedZones.length) : "Todas"}</strong></div>
+      </div>
+      <div class="content">
+        <p class="note"><strong>Zonas del reporte:</strong> ${escapeHtml(zoneLabel)}.</p>
+        <table>
+          <thead><tr><th>#</th><th>Cliente</th><th>Zona</th><th>Situación</th><th class="num">Días sin compra</th><th>Última factura</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="footer">Generado desde el portal BIPA el ${escapeHtml(generatedAt)}. La información se calcula con la hoja CLIENTES y los registros de FACTURACIÓN disponibles.</div>
+    </section>
+    <script>window.addEventListener("load",()=>setTimeout(()=>window.print(),250));<\/script>
+  </body>
+  </html>`;
+}
+
+function downloadSellerPdf(seller) {
+  const group = sellerMessageGroups(zoneFilteredSellerRows(detail)).find(item => item.seller === seller);
+  if (!group) return;
+  const popup = window.open("", "_blank");
+  if (!popup) {
+    window.alert("El navegador bloqueó la ventana del PDF. Permita ventanas emergentes para descargarlo.");
+    return;
+  }
+  popup.document.open();
+  popup.document.write(sellerPdfHtml(group));
+  popup.document.close();
 }
 
 function renderDetailPanel(rows) {
