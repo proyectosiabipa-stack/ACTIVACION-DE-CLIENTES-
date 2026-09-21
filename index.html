@@ -2,17 +2,17 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071a14">
-  <title>BIPA · Centro de inteligencia comercial</title><link rel="stylesheet" href="styles.css?v=20260921-2">
+  <title>BIPA · Centro de inteligencia comercial</title><link rel="stylesheet" href="styles.css?v=20260921-4">
 </head>
 <body>
   <div class="ambient ambientOne"></div><div class="ambient ambientTwo"></div>
   <header class="topbar">
     <a class="brand" href="#inicio"><span class="brandMark">B</span><span><strong>BIPA</strong><small>Inteligencia comercial</small></span></a>
-    <nav><a href="#resumen">Resumen</a><a href="#analisis">Análisis</a><a href="#clientes">Clientes</a></nav>
+    <nav><a href="#dashboard" data-view-link="dashboard">Dashboard</a><a href="#enviar" data-view-link="send">Enviar a vendedor</a></nav>
     <button id="exportBtn" class="exportButton" type="button"><span>↓</span> Exportar vista</button>
   </header>
   <main class="shell" id="inicio">
-    <section class="hero reveal">
+    <section class="hero reveal dashboardOnly">
       <div class="heroMain">
         <p class="eyebrow"><span></span> Centro de mando · Cartera de clientes</p>
         <h1>Vea la salud de su cartera.<br><em>Decida dónde actuar.</em></h1>
@@ -21,8 +21,8 @@
       </div>
       <aside class="heroPanel"><div class="liveBadge"><i></i> Datos actualizados</div><span>Periodo analizado</span><strong id="periodText">—</strong><hr><small>La asignación comercial viene de la hoja CLIENTES: verde es vendedor confirmado, rojo es vacante o por confirmar.</small></aside>
     </section>
-    <section class="decisionGuide reveal"><div class="guideIcon">◎</div><div><strong>Lectura rápida para gerencia</strong><p>Los indicadores cambian al usar los filtros. Así puede revisar una zona, un vendedor o un tipo de cliente sin perder el contexto.</p></div><a href="#clientes">Ir al detalle <span>→</span></a></section>
-    <section class="filterDock reveal" aria-label="Filtros de análisis">
+    <section class="decisionGuide reveal dashboardOnly"><div class="guideIcon">◎</div><div><strong>Lectura rápida para gerencia</strong><p>Los indicadores cambian al usar los filtros. Así puede revisar una zona, un vendedor o un tipo de cliente sin perder el contexto.</p></div><a href="#clientes">Ir al detalle <span>→</span></a></section>
+    <section class="filterDock reveal dashboardOnly" aria-label="Filtros de análisis">
       <div class="filterTitle"><span>01</span><div><strong>Enfoque del análisis</strong><small>Seleccione la parte de la cartera que desea revisar</small></div><button id="filtersToggle" class="filtersToggle" type="button" aria-expanded="true">Ocultar filtros ↑</button></div>
       <div class="filters" id="filtersBody">
         <label>Vendedor<select id="sellerFilter"></select></label><label>Asignación<select id="assignmentFilter"><option value="">Todos</option><option value="CONFIRMADO">Vendedor confirmado</option><option value="VACANTE">Vacante / por confirmar</option></select></label><label>Zona<select id="zoneFilter"></select></label><label>Tipo de cliente<select id="typeFilter"></select></label><label>Tiempo sin compra<select id="segmentFilter"></select></label>
@@ -33,11 +33,11 @@
       </div>
       <div class="filterSummary"><span class="summaryLabel">Vista actual</span><div id="activeFilters" class="filterChips"></div></div>
     </section>
-    <section id="resumen" class="sectionBlock reveal">
+    <section id="resumen" class="sectionBlock reveal dashboardOnly">
       <div class="sectionHeading"><div><span class="sectionNumber">02</span><p class="eyebrow">Panorama ejecutivo</p><h2>Lo esencial, en una sola mirada</h2></div><p>Estos resultados corresponden exactamente a los filtros seleccionados.</p></div>
       <div class="kpis" id="kpis"></div><div class="highlightStrip" id="highlightStrip"></div>
     </section>
-    <section class="executivePanel reveal">
+    <section class="executivePanel reveal dashboardOnly">
       <div class="execText"><span class="eyebrow soft">Conclusión automática</span><h2 id="executiveHeadline">Analizando la cartera comercial…</h2><p id="executiveText"></p></div>
       <div class="donutGrid">
         <article class="donutCard"><div class="donutChart" id="donutActiveChart"><div class="donutInner"><strong id="donutActiveValue">0%</strong><span>Activos</span></div></div><small>Cartera saludable</small></article>
@@ -45,8 +45,8 @@
         <article class="donutCard"><div class="donutChart" id="donutAssignChart"><div class="donutInner"><strong id="donutAssignValue">0%</strong><span>Vacantes</span></div></div><small>Por confirmar</small></article>
       </div>
     </section>
-    <section class="dataFeedback reveal" id="dataFeedback"></section>
-    <section id="analisis" class="sectionBlock reveal">
+    <section class="dataFeedback reveal dashboardOnly" id="dataFeedback"></section>
+    <section id="analisis" class="sectionBlock reveal dashboardOnly">
       <div class="sectionHeading"><div><span class="sectionNumber">03</span><p class="eyebrow">Oportunidades</p><h2>Dónde concentrar el esfuerzo comercial</h2></div><p>Una guía práctica para priorizar llamadas, visitas y recuperación.</p></div>
       <div class="opportunityGrid" id="opportunityGrid"></div>
       <div class="dashboard">
@@ -56,7 +56,7 @@
         <article class="panel"><span class="panelTag">Comportamiento</span><h2>Clientes con compra por mes</h2><p class="panelIntro">Evolución de clientes facturados durante el año.</p><div id="monthBars" class="bars compact"></div></article>
       </div>
     </section>
-    <section id="clientes" class="sectionBlock reveal">
+    <section id="clientes" class="sectionBlock reveal dashboardOnly">
       <div class="sectionHeading"><div><span class="sectionNumber">04</span><p class="eyebrow">Profundice</p><h2>Territorios, tipos y clientes</h2></div><p>Del panorama general a la acción concreta.</p></div>
       <div class="tables">
         <article class="panel"><span class="panelTag">Cobertura territorial</span><h2>Actividad por zona</h2><div class="tableWrap"><table id="zoneTable"></table></div></article>
@@ -64,8 +64,16 @@
         <article class="panel full"><div class="panelHead"><div><span class="panelTag">Lista de acción</span><h2>Clientes para seguimiento</h2><p id="detailCaption"></p></div><span class="clickHint">Seleccione una fila para ver la recomendación →</span></div><div class="tableWrap large"><table id="clientTable"></table></div></article>
       </div>
     </section>
-    <aside class="detailPanel" id="detailPanel"><div class="panelHead"><div><span class="panelTag">Ficha individual</span><h2>Detalle del cliente</h2><p id="detailClientTitle">Seleccione un cliente.</p></div><button id="closeDetailBtn" class="ghostButton">Cerrar ×</button></div><div id="detailClientContent" class="detailContent"></div></aside>
+    <section id="enviar" class="sectionBlock reveal sendOnly">
+      <div class="sectionHeading"><div><span class="sectionNumber">05</span><p class="eyebrow">Enviar a vendedor</p><h2>Activación mensual por WhatsApp</h2></div><p>Cada tarjeta resume los clientes que el vendedor debe activar este mes. Copie el texto y envíelo directo.</p></div>
+      <div class="sendToolbar">
+        <div><strong id="sendSummary">Preparando mensajes…</strong><small>Se incluyen clientes confirmados sin compra en los últimos 30 días o nunca facturados.</small></div>
+        <button id="copyAllSellerMessages" class="resetButton" type="button">Copiar todos</button>
+      </div>
+      <div id="sellerMessages" class="sellerMessages"></div>
+    </section>
+    <aside class="detailPanel dashboardOnly" id="detailPanel"><div class="panelHead"><div><span class="panelTag">Ficha individual</span><h2>Detalle del cliente</h2><p id="detailClientTitle">Seleccione un cliente.</p></div><button id="closeDetailBtn" class="ghostButton">Cerrar ×</button></div><div id="detailClientContent" class="detailContent"></div></aside>
     <footer><span>BIPA · Inteligencia comercial</span><p>Estado calculado exclusivamente a partir de la facturación registrada.</p></footer>
   </main>
-  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="data.js?v=20260921-2"></script><script src="app.js?v=20260921-2"></script>
+  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="data.js?v=20260921-2"></script><script src="app.js?v=20260921-10"></script>
 </body></html>
