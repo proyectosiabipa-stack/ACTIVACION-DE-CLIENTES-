@@ -140,6 +140,13 @@ document.getElementById("closeDetailBtn").addEventListener("click", () => {
   renderDetailPanel([]);
 });
 document.getElementById("exportBtn")?.addEventListener("click", downloadCSV);
+document.getElementById("copyAllSellerMessages")?.addEventListener("click", () => copyAllSellerMessages());
+document.getElementById("sellerMessages")?.addEventListener("click", event => {
+  const button = event.target.closest("[data-copy-seller]");
+  if (!button) return;
+  copySellerMessage(button.dataset.copySeller);
+});
+window.addEventListener("hashchange", applyViewMode);
 const filtersToggle = document.getElementById("filtersToggle");
 const filterDock = document.querySelector(".filterDock");
 filtersToggle?.addEventListener("click", () => {
@@ -281,8 +288,19 @@ function render() {
   renderTable("zoneTable", aggregate(rows, "zona").slice(0, 30));
   renderTable("typeTable", aggregate(rows, "tipo_cliente").slice(0, 30));
   renderClientTable(rows.slice().sort((a, b) => daysWithoutPurchase(b) - daysWithoutPurchase(a)).slice(0, 500));
+  renderSellerMessages(rows);
   renderDetailPanel(rows);
   bindTooltipTargets();
+  applyViewMode();
+}
+
+function applyViewMode() {
+  const mode = window.location.hash === "#enviar" ? "send" : "dashboard";
+  document.body.classList.toggle("sendMode", mode === "send");
+  document.body.classList.toggle("dashboardMode", mode === "dashboard");
+  document.querySelectorAll("[data-view-link]").forEach(link => {
+    link.classList.toggle("active", link.dataset.viewLink === mode);
+  });
 }
 
 function renderKpis(t) {
@@ -539,10 +557,19 @@ function renderMonthBars(rows) {
   });
   renderBars(
     "monthBars",
-    [...byMonth.values()].filter(r => r.clientes).sort((a, b) => a.name.localeCompare(b.name)),
+    [...byMonth.values()]
+      .filter(r => r.clientes)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(r => ({ ...r, name: monthName(r.name) })),
     false,
     r => `${fmt.format(r.clientes)} clientes compraron`
   );
+}
+
+function monthName(monthKey) {
+  const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  const monthNumber = Number(String(monthKey).split("-")[1]);
+  return monthNames[monthNumber - 1] || monthKey;
 }
 
 function renderTable(id, rows) {
@@ -579,6 +606,122 @@ function renderClientTable(rows) {
         <td>${r.ultima_factura || "-"}</td>
         <td class="num">${money.format(Number(r.venta_total) || 0)}</td>
       </tr>`).join("")}</tbody>`;
+}
+
+function activationRows(rows) {
+  return rows
+    .filter(row => row.estado_asignacion === "CONFIRMADO")
+    .filter(row => row.vendedor && !["VACANTE", "SIN VENDEDOR", "SIN DATO", "SIN ASIGNACIÓN"].includes(normalizeLabel(row.vendedor).toUpperCase()))
+    .filter(row => row.estado_facturacion !== "ACTIVO")
+    .sort((a, b) => {
+      if (a.segmento === "NUNCA FACTURADO" && b.segmento !== "NUNCA FACTURADO") return -1;
+      if (a.segmento !== "NUNCA FACTURADO" && b.segmento === "NUNCA FACTURADO") return 1;
+      return daysWithoutPurchase(b) - daysWithoutPurchase(a);
+    });
+}
+
+function sellerMessageGroups(rows) {
+  const groups = new Map();
+  const eligibleRows = rows
+    .filter(row => row.estado_asignacion === "CONFIRMADO")
+    .filter(row => row.vendedor && !["VACANTE", "SIN VENDEDOR", "SIN DATO", "SIN ASIGNACIÓN"].includes(normalizeLabel(row.vendedor).toUpperCase()));
+  eligibleRows.forEach(row => {
+    const seller = normalizeLabel(row.vendedor);
+    if (!groups.has(seller)) groups.set(seller, { seller, portfolio: [], pending: [] });
+    const group = groups.get(seller);
+    group.portfolio.push(row);
+    if (row.estado_facturacion !== "ACTIVO") group.pending.push(row);
+  });
+  return [...groups.values()]
+    .map(group => ({
+      ...group,
+      pending: group.pending.sort((a, b) => {
+        if (a.segmento === "NUNCA FACTURADO" && b.segmento !== "NUNCA FACTURADO") return -1;
+        if (a.segmento !== "NUNCA FACTURADO" && b.segmento === "NUNCA FACTURADO") return 1;
+        return daysWithoutPurchase(b) - daysWithoutPurchase(a);
+      })
+    }))
+    .filter(group => group.pending.length)
+    .sort((a, b) => b.pending.length - a.pending.length || a.seller.localeCompare(b.seller));
+}
+
+function buildSellerMessage(group) {
+  const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
+  const pendingCount = group.pending.length;
+  const lines = group.pending.map((row, index) => {
+    return `${index + 1}. ${row.cliente} | ${normalizeLabel(row.zona)}`;
+  });
+
+  return [
+    `Buen día, ${group.seller}.`,
+    "",
+    "Se comparte la cartera de clientes pendientes por activar durante el mes.",
+    `Total cartera de clientes: ${fmt.format(group.portfolio.length)}.`,
+    `Clientes activos en el mes: ${fmt.format(activeThisMonth)}.`,
+    `Clientes pendientes por activar: ${fmt.format(pendingCount)}.`,
+    "",
+    "Clientes para activar:",
+    ...lines,
+    "",
+    "Favor realizar gestión comercial y reportar novedades o posibilidad de pedido.",
+    "Cada cliente recuperado suma al resultado del mes. Gracias por el compromiso y seguimiento."
+  ].filter(line => line !== "").join("\n");
+}
+
+function renderSellerMessages(rows) {
+  const container = document.getElementById("sellerMessages");
+  const summary = document.getElementById("sendSummary");
+  if (!container || !summary) return;
+
+  const groups = sellerMessageGroups(rows);
+  const totalClients = groups.reduce((sum, group) => sum + group.pending.length, 0);
+  summary.textContent = `${fmt.format(totalClients)} clientes para activación mensual distribuidos en ${fmt.format(groups.length)} vendedores`;
+
+  if (!groups.length) {
+    container.innerHTML = `<article class="sellerMessage empty"><h3>No hay clientes para activación mensual con los filtros actuales.</h3><p>Pruebe limpiar filtros o revisar vendedores confirmados.</p></article>`;
+    return;
+  }
+
+  container.innerHTML = groups.map(group => {
+    const message = buildSellerMessage(group);
+    const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
+    const preview = group.pending.slice(0, 5).map(row => `<li>${escapeHtml(shorten(row.cliente, 48))}<span>${escapeHtml(shorten(normalizeLabel(row.zona), 22))}</span></li>`).join("");
+    return `
+      <article class="sellerMessage">
+        <div class="sellerMessageHead">
+          <div><span class="panelTag">WhatsApp</span><h3>${escapeHtml(group.seller)}</h3><p>Cartera ${fmt.format(group.portfolio.length)} · activos ${fmt.format(activeThisMonth)} · faltan ${fmt.format(group.pending.length)}</p></div>
+          <button class="copyButton" type="button" data-copy-seller="${escapeHtml(group.seller)}">Copiar mensaje</button>
+        </div>
+        <ul>${preview}</ul>
+        <textarea readonly>${escapeHtml(message)}</textarea>
+      </article>`;
+  }).join("");
+}
+
+async function copyText(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (button) {
+      const previous = button.textContent;
+      button.textContent = "Copiado";
+      setTimeout(() => { button.textContent = previous; }, 1400);
+    }
+  } catch (error) {
+    window.prompt("Copie el mensaje:", text);
+  }
+}
+
+function copySellerMessage(seller) {
+  const group = sellerMessageGroups(currentRows()).find(item => item.seller === seller);
+  if (!group) return;
+  const button = document.querySelector(`[data-copy-seller="${CSS.escape(seller)}"]`);
+  copyText(buildSellerMessage(group), button);
+}
+
+function copyAllSellerMessages() {
+  const groups = sellerMessageGroups(currentRows());
+  const text = groups.map(group => buildSellerMessage(group)).join("\n\n-----------------------------\n\n");
+  copyText(text, document.getElementById("copyAllSellerMessages"));
 }
 
 function renderDetailPanel(rows) {
