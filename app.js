@@ -1,7 +1,7 @@
 const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbzrMwzeQve1Jza0iSIJnRMZzipBb6LAoZ9YFRzL3llOLYnaGrul8MAXOQJ32yTJwXMm/exec";
 
-let data = window.ACTIVATION_DATA || null;
-let detail = data ? data.detail || [] : [];
+let data = null;
+let detail = [];
 const filters = {
   seller: document.getElementById("sellerFilter"),
   assignment: document.getElementById("assignmentFilter"),
@@ -110,13 +110,20 @@ function unique(field) {
 }
 
 function fillSelect(select, values) {
+  if (!select) return;
+  const currentValue = select.value;
   select.innerHTML = `<option value="">Todos</option>` + values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+  if ([...select.options].some(option => option.value === currentValue)) {
+    select.value = currentValue;
+  }
 }
 
-fillSelect(filters.seller, unique("vendedor"));
-fillSelect(filters.zone, unique("zona"));
-fillSelect(filters.type, unique("tipo_cliente"));
-fillSelect(filters.segment, unique("segmento"));
+function refreshFilterOptions() {
+  fillSelect(filters.seller, unique("vendedor"));
+  fillSelect(filters.zone, unique("zona"));
+  fillSelect(filters.type, unique("tipo_cliente"));
+  fillSelect(filters.segment, unique("segmento"));
+}
 
 Object.values(filters).forEach(el => el.addEventListener("input", render));
 [daysRange.min, daysRange.max].forEach(el => el.addEventListener("input", () => {
@@ -1002,12 +1009,6 @@ function escapeHtml(text) {
 }
 
 async function loadData() {
-  if (window.ACTIVATION_DATA) {
-    data = window.ACTIVATION_DATA;
-    detail = data.detail || [];
-    return;
-  }
-
   const candidates = [
     ...(REMOTE_DATA_URL ? [REMOTE_DATA_URL] : []),
     "data.json",
@@ -1029,6 +1030,12 @@ async function loadData() {
     }
   }
 
+  if (window.ACTIVATION_DATA && Array.isArray(window.ACTIVATION_DATA.detail)) {
+    data = window.ACTIVATION_DATA;
+    detail = data.detail || [];
+    return;
+  }
+
   console.error("Fallo al cargar datos del portal. Se usará una vista vacía.");
   data = { start: "", cutoff: "", detail: [] };
   detail = [];
@@ -1036,6 +1043,7 @@ async function loadData() {
 
 async function boot() {
   await loadData();
+  refreshFilterOptions();
   render();
 }
 
