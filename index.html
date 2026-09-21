@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071a14">
-  <title>BIPA · Centro de inteligencia comercial</title><link rel="stylesheet" href="styles.css?v=20260921-4">
+  <title>BIPA · Centro de inteligencia comercial</title><link rel="stylesheet" href="styles.css?v=20260921-7">
 </head>
 <body>
   <div class="ambient ambientOne"></div><div class="ambient ambientTwo"></div>
@@ -68,6 +68,19 @@
       <div class="sectionHeading"><div><span class="sectionNumber">05</span><p class="eyebrow">Enviar a vendedor</p><h2>Activación mensual por WhatsApp</h2></div><p>Cada tarjeta resume los clientes que el vendedor debe activar este mes. Copie el texto y envíelo directo.</p></div>
       <div class="sendToolbar">
         <div><strong id="sendSummary">Preparando mensajes…</strong><small>Se incluyen clientes confirmados sin compra en los últimos 30 días o nunca facturados.</small></div>
+        <label class="sellerPicker">Vendedor<select id="sellerMessageFilter"><option value="">Todos los vendedores</option></select></label>
+        <div class="zonePicker" id="sellerZonePicker">
+          <span>Zonas</span>
+          <button id="zonePickerButton" class="zonePickerButton" type="button" aria-expanded="false">
+            <strong id="zonePickerLabel">Todas las zonas</strong><small>Buscar y seleccionar</small>
+          </button>
+          <div class="zonePickerPanel" id="zonePickerPanel" hidden>
+            <input id="zoneSearchInput" type="search" placeholder="Buscar zona…" aria-label="Buscar zona">
+            <div id="zoneOptions" class="zoneOptions"></div>
+            <button id="clearSellerZones" class="linkButton" type="button">Limpiar zonas</button>
+          </div>
+          <div id="selectedZoneChips" class="selectedZoneChips"></div>
+        </div>
         <button id="copyAllSellerMessages" class="resetButton" type="button">Copiar todos</button>
       </div>
       <div id="sellerMessages" class="sellerMessages"></div>
@@ -75,5 +88,5 @@
     <aside class="detailPanel dashboardOnly" id="detailPanel"><div class="panelHead"><div><span class="panelTag">Ficha individual</span><h2>Detalle del cliente</h2><p id="detailClientTitle">Seleccione un cliente.</p></div><button id="closeDetailBtn" class="ghostButton">Cerrar ×</button></div><div id="detailClientContent" class="detailContent"></div></aside>
     <footer><span>BIPA · Inteligencia comercial</span><p>Estado calculado exclusivamente a partir de la facturación registrada.</p></footer>
   </main>
-  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="data.js?v=20260921-2"></script><script src="app.js?v=20260921-10"></script>
+  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="data.js?v=20260921-2"></script><script src="app.js?v=20260921-17"></script>
 </body></html>
