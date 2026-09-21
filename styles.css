@@ -169,3 +169,7 @@ nav a.active{color:var(--forest);font-weight:800}
   body.dashboardMode .kpis{grid-template-columns:1fr}
   .sellerMessage textarea{min-height:170px}
 }
+/* Estado de conexión y actualización en vivo */
+.liveBadge.loading{color:#f8c24b!important}.liveBadge.error{color:#ff8b7d!important}.liveBadge.offline{color:#ffd166!important}.liveBadge.live{color:#a8f35a!important}
+.dataUpdatedAt{display:block!important;margin:10px 0 0;color:rgba(255,255,255,.72)!important;font-size:.78rem}
+.dataRefreshButton{margin-top:14px}
