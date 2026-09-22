@@ -126,12 +126,40 @@ function fillSelect(select, values) {
 
 function refreshFilterOptions() {
   fillSelect(filters.seller, unique("vendedor"));
-  fillSelect(filters.zone, unique("zona"));
+  refreshZoneFilterOptions();
   fillSelect(filters.type, unique("tipo_cliente"));
   fillSelect(filters.segment, unique("segmento"));
 }
 
-Object.values(filters).forEach(el => el.addEventListener("input", render));
+function sellerZones(seller) {
+  if (!seller) return unique("zona");
+  return [...new Set(
+    detail
+      .filter(row => normalizeLabel(row.vendedor) === seller)
+      .map(row => normalizeLabel(row.zona))
+      .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
+}
+
+function refreshZoneFilterOptions() {
+  const selectedSeller = filters.seller.value;
+  const availableZones = sellerZones(selectedSeller);
+  const activeZone = filters.zone.value;
+  fillSelect(filters.zone, availableZones);
+  if (activeZone && !availableZones.includes(activeZone)) filters.zone.value = "";
+}
+
+Object.entries(filters).forEach(([name, el]) => {
+  if (name !== "seller") el.addEventListener("input", render);
+});
+filters.seller.addEventListener("change", () => {
+  // Al cambiar de vendedor se libera una zona que pudiera venir de otra cartera.
+  // Asi se ve completa la cartera del vendedor nuevo, con todas sus zonas.
+  filters.zone.value = "";
+  refreshZoneFilterOptions();
+  state.selectedClient = null;
+  render();
+});
 [daysRange.min, daysRange.max].forEach(el => el.addEventListener("input", () => {
   if (Number(daysRange.min.value) > Number(daysRange.max.value)) {
     if (document.activeElement === daysRange.min) {
@@ -341,6 +369,7 @@ function totals(rows) {
 
 function render() {
   if (!data || !detail.length) return;
+  const sendMode = window.location.hash === "#enviar";
   document.getElementById("periodText").textContent = `${data.start} a ${data.cutoff}`;
   const rows = currentRows();
   const t = totals(rows);
@@ -357,20 +386,26 @@ function render() {
   renderMonthBars(rows);
   renderTable("zoneTable", aggregate(rows, "zona").slice(0, 30));
   renderTable("typeTable", aggregate(rows, "tipo_cliente").slice(0, 30));
-  renderClientTable(rows.slice().sort((a, b) => daysWithoutPurchase(b) - daysWithoutPurchase(a)).slice(0, 500));
-  renderSellerMessages(detail);
+  const sortedClients = rows.slice().sort((a, b) => daysWithoutPurchase(b) - daysWithoutPurchase(a));
+  // Cuando se analiza un vendedor, su cartera debe verse completa y no limitada
+  // por el corte general de la tabla.
+  renderClientTable(filters.seller.value ? sortedClients : sortedClients.slice(0, 500));
+  if (sendMode) renderSellerMessages(detail);
   renderDetailPanel(rows);
   bindTooltipTargets();
-  applyViewMode();
+  applyViewMode(false);
 }
 
-function applyViewMode() {
+function applyViewMode(renderMessages = true) {
   const mode = window.location.hash === "#enviar" ? "send" : "dashboard";
   document.body.classList.toggle("sendMode", mode === "send");
   document.body.classList.toggle("dashboardMode", mode === "dashboard");
   document.querySelectorAll("[data-view-link]").forEach(link => {
     link.classList.toggle("active", link.dataset.viewLink === mode);
   });
+  // La vista de mensajes es pesada porque prepara una lista para cada vendedor.
+  // Se crea solo cuando el usuario abre esa vista, no al cargar el dashboard.
+  if (mode === "send" && renderMessages && data && detail.length) renderSellerMessages(detail);
 }
 
 function renderKpis(t) {
@@ -660,9 +695,16 @@ function renderTable(id, rows) {
 }
 
 function renderClientTable(rows) {
-  document.getElementById("detailCaption").textContent = `Mostrando ${fmt.format(rows.length)} clientes. Esta tabla sirve para decidir a quién llamar, visitar o reasignar.`;
+  const selectedSeller = filters.seller.value;
+  const zones = [...new Set(rows.map(row => normalizeLabel(row.zona)).filter(Boolean))];
+  const zoneText = zones.length
+    ? ` Zonas de esta cartera: ${zones.join(", ")}.`
+    : "";
+  document.getElementById("detailCaption").textContent = selectedSeller
+    ? `Cartera completa de ${selectedSeller}: ${fmt.format(rows.length)} clientes en ${fmt.format(zones.length)} zonas.${zoneText}`
+    : `Mostrando ${fmt.format(rows.length)} clientes. Esta tabla sirve para decidir a quién llamar, visitar o reasignar.`;
   clientTableEl.innerHTML = `
-    <thead><tr><th>Cliente</th><th>Vendedor</th><th>Asignación</th><th>Zona</th><th>Tipo</th><th>Situación</th><th>Tiempo sin compra</th><th class="num">Días sin comprar</th><th>Última compra</th><th class="num">Venta</th></tr></thead>
+    <thead><tr><th>Cliente</th><th>Vendedor</th><th>Asignación</th><th>Zona</th><th>Tipo</th><th>Situación</th><th>Tiempo sin compra</th><th class="num">Días sin comprar</th><th>Última compra</th><th class="num">Monto última factura</th><th class="num">Promedio por compra</th><th class="num"><span data-tooltip="Total de compras del cliente durante el año o período analizado. Si está inactivo, corresponde a lo que compró antes de su última factura.">Histórico anual ⓘ</span></th></tr></thead>
     <tbody>${rows.map(r => `
       <tr class="clientRow ${state.selectedClient === r.codigo ? "selected" : ""}" data-client-code="${escapeHtml(r.codigo)}">
         <td>${escapeHtml(shorten(r.cliente, 44))}</td>
@@ -674,6 +716,8 @@ function renderClientTable(rows) {
         <td>${escapeHtml(simpleSegment(r.segmento))}</td>
         <td class="num">${formatDaysWithoutPurchase(r)}</td>
         <td>${r.ultima_factura || "-"}</td>
+        <td class="num">${r.ultima_factura ? money.format(Number(r.monto_ultima_factura) || 0) : "-"}</td>
+        <td class="num">${r.documentos ? money.format(Number(r.promedio_compra) || 0) : "-"}</td>
         <td class="num">${money.format(Number(r.venta_total) || 0)}</td>
       </tr>`).join("")}</tbody>`;
 }
@@ -965,8 +1009,10 @@ function renderDetailPanel(rows) {
       <div><label>Zona</label><strong>${escapeHtml(normalizeLabel(selectedRow.zona) || "-")}</strong></div>
       <div><label>Tipo</label><strong>${escapeHtml(normalizeLabel(selectedRow.tipo_cliente) || "-")}</strong></div>
       <div><label>Última compra</label><strong>${selectedRow.ultima_factura || "-"}</strong></div>
+      <div><label>Monto última factura</label><strong>${selectedRow.ultima_factura ? money.format(Number(selectedRow.monto_ultima_factura) || 0) : "-"}</strong></div>
+      <div><label>Promedio por compra</label><strong>${selectedRow.documentos ? money.format(Number(selectedRow.promedio_compra) || 0) : "-"}</strong></div>
       <div><label>Días sin comprar</label><strong>${formatDaysWithoutPurchase(selectedRow)}</strong></div>
-      <div><label>Venta total</label><strong>${money.format(Number(selectedRow.venta_total) || 0)}</strong></div>
+      <div><label>Histórico anual</label><strong>${money.format(Number(selectedRow.venta_total) || 0)}</strong></div>
       <div><label>Saldo total</label><strong>${money.format(Number(selectedRow.saldo_total) || 0)}</strong></div>
       <div><label>Saldo vencido</label><strong>${money.format(Number(selectedRow.saldo_vencido) || 0)}</strong></div>
     </div>
@@ -979,7 +1025,7 @@ function renderDetailPanel(rows) {
 
 function downloadCSV() {
   const rows = currentRows();
-  const headers = ["codigo","cliente","vendedor","estado_asignacion","activo_hoja_clientes","zona","tipo_cliente","estado_facturacion","segmento","primera_factura","ultima_factura","dias_sin_facturar","venta_total","saldo_total"];
+  const headers = ["codigo","cliente","vendedor","estado_asignacion","activo_hoja_clientes","zona","tipo_cliente","estado_facturacion","segmento","primera_factura","ultima_factura","dias_sin_facturar","monto_ultima_factura","promedio_compra","venta_total","saldo_total"];
   const csv = [headers.join(",")].concat(rows.map(row => headers.map(h => {
     const value = h === "dias_sin_facturar" ? formatDaysWithoutPurchase(row) : row[h] ?? "";
     return `"${String(value).replaceAll('"', '""')}"`;
