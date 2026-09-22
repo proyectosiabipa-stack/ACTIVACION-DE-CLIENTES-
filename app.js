@@ -773,6 +773,7 @@ function zoneFilteredSellerRows(rows) {
 function buildSellerMessage(group) {
   const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
   const pendingCount = group.pending.length;
+  const recoveryPotential = recoveryPotentialOf(group.pending);
   const lines = group.pending.map((row, index) => {
     return `${index + 1}. ${row.cliente} | ${normalizeLabel(row.zona)}`;
   });
@@ -784,6 +785,8 @@ function buildSellerMessage(group) {
     `Total cartera de clientes: ${fmt.format(group.portfolio.length)}.`,
     `Clientes activos en el mes: ${fmt.format(activeThisMonth)}.`,
     `Clientes pendientes por activar: ${fmt.format(pendingCount)}.`,
+    `Potencial de recuperación estimado: ${money.format(recoveryPotential)}.`,
+    "Referencia: suma de la última factura registrada de cada cliente pendiente.",
     "",
     "Clientes para activar:",
     ...lines,
@@ -791,6 +794,10 @@ function buildSellerMessage(group) {
     "Favor realizar gestión comercial y reportar novedades o posibilidad de pedido.",
     "Cada cliente recuperado suma al resultado del mes. Gracias por el compromiso y seguimiento."
   ].filter(line => line !== "").join("\n");
+}
+
+function recoveryPotentialOf(rows) {
+  return rows.reduce((total, row) => total + toNumber(row.monto_ultima_factura), 0);
 }
 
 function renderSellerMessages(rows) {
@@ -817,11 +824,12 @@ function renderSellerMessages(rows) {
   container.innerHTML = visibleGroups.map(group => {
     const message = buildSellerMessage(group);
     const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
+    const recoveryPotential = recoveryPotentialOf(group.pending);
     const preview = group.pending.slice(0, 5).map(row => `<li>${escapeHtml(shorten(row.cliente, 48))}<span>${escapeHtml(shorten(normalizeLabel(row.zona), 22))}</span></li>`).join("");
     return `
       <article class="sellerMessage">
         <div class="sellerMessageHead">
-          <div><span class="panelTag">WhatsApp</span><h3>${escapeHtml(group.seller)}</h3><p>Cartera ${fmt.format(group.portfolio.length)} · activos ${fmt.format(activeThisMonth)} · faltan ${fmt.format(group.pending.length)}</p></div>
+          <div><span class="panelTag">WhatsApp</span><h3>${escapeHtml(group.seller)}</h3><p>Cartera ${fmt.format(group.portfolio.length)} · activos ${fmt.format(activeThisMonth)} · faltan ${fmt.format(group.pending.length)}</p><div class="recoveryPotential"><span>Potencial de recuperación</span><strong>${money.format(recoveryPotential)}</strong><small>Suma de las últimas facturas registradas</small></div></div>
           <div class="sellerActions">
             <button class="copyButton" type="button" data-copy-seller="${escapeHtml(group.seller)}">Copiar mensaje</button>
             <button class="pdfButton" type="button" data-pdf-seller="${escapeHtml(group.seller)}">Descargar PDF</button>
@@ -924,6 +932,7 @@ function sellerPdfHtml(group) {
   const selectedZones = selectedSellerZones();
   const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
   const pendingCount = group.pending.length;
+  const recoveryPotential = recoveryPotentialOf(group.pending);
   const zoneLabel = selectedZones.length ? selectedZones.join(", ") : "Todas las zonas";
   const generatedAt = new Date().toLocaleString("es-VE");
   const rows = group.pending.map((row, index) => `
@@ -934,6 +943,7 @@ function sellerPdfHtml(group) {
       <td>${escapeHtml(simpleSegment(row.segmento))}</td>
       <td class="num">${escapeHtml(formatDaysWithoutPurchase(row))}</td>
       <td>${escapeHtml(row.ultima_factura || "Sin factura")}</td>
+      <td class="num">${row.ultima_factura ? money.format(toNumber(row.monto_ultima_factura)) : "-"}</td>
     </tr>`).join("");
 
   return `<!doctype html>
@@ -942,7 +952,7 @@ function sellerPdfHtml(group) {
     <meta charset="utf-8">
     <title>Activación mensual · ${escapeHtml(group.seller)}</title>
     <style>
-      *{box-sizing:border-box}body{margin:0;padding:28px;color:#10231c;font-family:Arial,Helvetica,sans-serif;background:#f5f7f1}.page{max-width:1120px;margin:auto;background:white;border:1px solid #dfe7e2;border-radius:22px;overflow:hidden}.hero{padding:28px 32px;background:linear-gradient(135deg,#071a14,#0d3a2b);color:white}.eyebrow{margin:0 0 8px;color:#b7f45d;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.hero h1{margin:0;font-size:30px;line-height:1.05}.hero p{margin:10px 0 0;color:#c9d8d2}.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:18px 32px;background:#f8faf7;border-bottom:1px solid #dfe7e2}.card{padding:13px;border:1px solid #dfe7e2;border-radius:14px;background:white}.card span{display:block;color:#66766f;font-size:10px;font-weight:800;text-transform:uppercase}.card strong{display:block;margin-top:5px;font-size:18px}.content{padding:24px 32px}.note{margin:0 0 16px;padding:13px 15px;border-radius:13px;background:#eef7f1;color:#0d3a2b;font-size:13px;line-height:1.45}table{width:100%;border-collapse:collapse;font-size:11px}th{padding:10px 8px;background:#10231c;color:white;text-align:left;text-transform:uppercase;font-size:9px;letter-spacing:.06em}td{padding:10px 8px;border-bottom:1px solid #e8eee9;vertical-align:top}td small{display:block;margin-top:3px;color:#66766f}.num{text-align:right;white-space:nowrap}tr:nth-child(even) td{background:#fbfcfa}.footer{padding:14px 32px;color:#66766f;font-size:10px;border-top:1px solid #dfe7e2}@media print{body{padding:0;background:white}.page{border:0;border-radius:0}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}button{display:none}thead{display:table-header-group}}
+      *{box-sizing:border-box}body{margin:0;padding:28px;color:#10231c;font-family:Arial,Helvetica,sans-serif;background:#f5f7f1}.page{max-width:1120px;margin:auto;background:white;border:1px solid #dfe7e2;border-radius:22px;overflow:hidden}.hero{padding:28px 32px;background:linear-gradient(135deg,#071a14,#0d3a2b);color:white}.eyebrow{margin:0 0 8px;color:#b7f45d;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.hero h1{margin:0;font-size:30px;line-height:1.05}.hero p{margin:10px 0 0;color:#c9d8d2}.meta{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:18px 32px;background:#f8faf7;border-bottom:1px solid #dfe7e2}.card{padding:13px;border:1px solid #dfe7e2;border-radius:14px;background:white}.card.potential{border-color:#9ddc63;background:#f2ffe5}.card span{display:block;color:#66766f;font-size:10px;font-weight:800;text-transform:uppercase}.card strong{display:block;margin-top:5px;font-size:18px}.content{padding:24px 32px}.note{margin:0 0 16px;padding:13px 15px;border-radius:13px;background:#eef7f1;color:#0d3a2b;font-size:13px;line-height:1.45}table{width:100%;border-collapse:collapse;font-size:11px}th{padding:10px 8px;background:#10231c;color:white;text-align:left;text-transform:uppercase;font-size:9px;letter-spacing:.06em}td{padding:10px 8px;border-bottom:1px solid #e8eee9;vertical-align:top}td small{display:block;margin-top:3px;color:#66766f}.num{text-align:right;white-space:nowrap}tr:nth-child(even) td{background:#fbfcfa}.footer{padding:14px 32px;color:#66766f;font-size:10px;border-top:1px solid #dfe7e2}@media print{body{padding:0;background:white}.page{border:0;border-radius:0}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}button{display:none}thead{display:table-header-group}}
     </style>
   </head>
   <body>
@@ -956,12 +966,13 @@ function sellerPdfHtml(group) {
         <div class="card"><span>Total cartera</span><strong>${fmt.format(group.portfolio.length)}</strong></div>
         <div class="card"><span>Activos en el mes</span><strong>${fmt.format(activeThisMonth)}</strong></div>
         <div class="card"><span>Pendientes</span><strong>${fmt.format(pendingCount)}</strong></div>
+        <div class="card potential"><span>Potencial de recuperación</span><strong>${money.format(recoveryPotential)}</strong></div>
         <div class="card"><span>Zonas filtradas</span><strong>${selectedZones.length ? fmt.format(selectedZones.length) : "Todas"}</strong></div>
       </div>
       <div class="content">
-        <p class="note"><strong>Zonas del reporte:</strong> ${escapeHtml(zoneLabel)}.</p>
+        <p class="note"><strong>Potencial de recuperación estimado:</strong> ${money.format(recoveryPotential)}. Corresponde a la suma de la última factura registrada de cada cliente pendiente; es una referencia para priorizar la gestión, no una venta garantizada.<br><strong>Zonas del reporte:</strong> ${escapeHtml(zoneLabel)}.</p>
         <table>
-          <thead><tr><th>#</th><th>Cliente</th><th>Zona</th><th>Situación</th><th class="num">Días sin compra</th><th>Última factura</th></tr></thead>
+          <thead><tr><th>#</th><th>Cliente</th><th>Zona</th><th>Situación</th><th class="num">Días sin compra</th><th>Última factura</th><th class="num">Monto última factura</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1105,12 +1116,13 @@ function applyData(payload, source = "remote") {
   return true;
 }
 
-async function fetchJsonWithTimeout(url, timeout = 6500) {
+async function fetchJsonWithTimeout(url, timeout = 6500, forceRefresh = false) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
     const separator = url.includes("?") ? "&" : "?";
-    const response = await fetch(`${url}${separator}t=${Date.now()}`, { cache: "no-store", signal: controller.signal });
+    const forceParam = forceRefresh ? "&force=1" : "";
+    const response = await fetch(`${url}${separator}t=${Date.now()}${forceParam}`, { cache: "no-store", signal: controller.signal });
     if (!response.ok) throw new Error(`Respuesta ${response.status}`);
     const contentType = response.headers.get("content-type") || "";
     const text = await response.text();
@@ -1123,7 +1135,7 @@ async function fetchJsonWithTimeout(url, timeout = 6500) {
   }
 }
 
-function loadJsonpWithTimeout(url, timeout = 8500) {
+function loadJsonpWithTimeout(url, timeout = 8500, forceRefresh = false) {
   return new Promise((resolve, reject) => {
     const callbackName = `bipaData_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const separator = url.includes("?") ? "&" : "?";
@@ -1148,17 +1160,18 @@ function loadJsonpWithTimeout(url, timeout = 8500) {
       cleanup();
       reject(new Error("El enlace de Apps Script no pudo cargarse como datos publicos."));
     };
-    script.src = `${url}${separator}callback=${encodeURIComponent(callbackName)}&t=${Date.now()}`;
+    const forceParam = forceRefresh ? "&force=1" : "";
+    script.src = `${url}${separator}callback=${encodeURIComponent(callbackName)}&t=${Date.now()}${forceParam}`;
     document.head.appendChild(script);
   });
 }
 
-async function readRemotePayload() {
+async function readRemotePayload(forceRefresh = false) {
   try {
-    return validateRemotePayload(await loadJsonpWithTimeout(REMOTE_DATA_URL, REMOTE_REQUEST_TIMEOUT_MS));
+    return validateRemotePayload(await loadJsonpWithTimeout(REMOTE_DATA_URL, REMOTE_REQUEST_TIMEOUT_MS, forceRefresh));
   } catch (jsonpError) {
     try {
-      return validateRemotePayload(await fetchJsonWithTimeout(REMOTE_DATA_URL, REMOTE_REQUEST_TIMEOUT_MS));
+      return validateRemotePayload(await fetchJsonWithTimeout(REMOTE_DATA_URL, REMOTE_REQUEST_TIMEOUT_MS, forceRefresh));
     } catch (jsonError) {
       const message = jsonpError?.message || jsonError?.message || "No se pudo leer Google Sheets.";
       throw new Error(message);
@@ -1166,11 +1179,11 @@ async function readRemotePayload() {
   }
 }
 
-async function refreshFromRemote() {
+async function refreshFromRemote(forceRefresh = false) {
   if (!REMOTE_DATA_URL || isRefreshingRemote) return false;
   isRefreshingRemote = true;
   try {
-    const payload = await readRemotePayload();
+    const payload = await readRemotePayload(forceRefresh);
     return applyData(payload, "remote");
   } catch (error) {
     console.warn("No se pudo actualizar desde Google Sheets.", error);
@@ -1188,7 +1201,7 @@ async function boot() {
     refreshButton.disabled = true;
     refreshButton.textContent = "Actualizando…";
     setLiveStatus("loading", "Consultando Google Sheets…", "Espere un momento mientras se lee la hoja.");
-    const ok = await refreshFromRemote();
+    const ok = await refreshFromRemote(true);
     if (!ok) setLiveStatus("error", "No se pudo actualizar", window.BIPA_LAST_REMOTE_ERROR || "Revise la publicacion del Apps Script y vuelva a intentar.");
     refreshButton.disabled = false;
     refreshButton.textContent = "Actualizar datos ahora";
