@@ -772,21 +772,31 @@ function zoneFilteredSellerRows(rows) {
 
 function buildSellerMessage(group) {
   const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
-  const pendingCount = group.pending.length;
-  const recoveryPotential = recoveryPotentialOf(group.pending);
-  const lines = group.pending.map((row, index) => {
-    return `${index + 1}. ${row.cliente} | ${normalizeLabel(row.zona)}`;
+  const pendingRows = uniqueCustomerRows(group.pending);
+  const pendingCount = pendingRows.length;
+  const recoveryPotential = recoveryPotentialOf(pendingRows);
+  const topCustomers = topInactiveCustomers(pendingRows);
+  const lines = pendingRows.map((row, index) => {
+    return `${index + 1}. ${row.cliente} | ${normalizeLabel(row.zona)} | ${sellerPurchaseMetrics(row)}`;
+  });
+  const topLines = topCustomers.map((row, index) => {
+    return `${index + 1}. ${row.cliente} | ${sellerPurchaseMetrics(row)}`;
   });
 
   return [
     `Buen día, ${group.seller}.`,
     "",
     "Se comparte la cartera de clientes pendientes por activar durante el mes.",
+    "Cada reactivación representa una oportunidad real para sumar al resultado comercial.",
     `Total cartera de clientes: ${fmt.format(group.portfolio.length)}.`,
     `Clientes activos en el mes: ${fmt.format(activeThisMonth)}.`,
     `Clientes pendientes por activar: ${fmt.format(pendingCount)}.`,
-    `Potencial de recuperación estimado: ${money.format(recoveryPotential)}.`,
-    "Referencia: suma de la última factura registrada de cada cliente pendiente.",
+    `Oportunidad de próxima venta en total: ${money.format(recoveryPotential)}.`,
+    "Referencia: suma del promedio por factura de cada cliente pendiente con historial.",
+    "No representa una venta garantizada.",
+    "",
+    "Top 10 oportunidades por promedio de compra:",
+    ...topLines,
     "",
     "Clientes para activar:",
     ...lines,
@@ -797,7 +807,40 @@ function buildSellerMessage(group) {
 }
 
 function recoveryPotentialOf(rows) {
-  return rows.reduce((total, row) => total + toNumber(row.monto_ultima_factura), 0);
+  return uniqueCustomerRows(rows).reduce((total, row) => total + toNumber(row.promedio_compra), 0);
+}
+
+function hasMaximumPurchase(row) {
+  return row && Object.prototype.hasOwnProperty.call(row, "monto_maximo_factura") && Number.isFinite(Number(row.monto_maximo_factura));
+}
+
+function maximumPurchaseText(row) {
+  if (!toNumber(row?.documentos)) return "sin historial";
+  if (!hasMaximumPurchase(row)) return "pendiente de actualizar fuente";
+  return money.format(toNumber(row.monto_maximo_factura));
+}
+
+function sellerPurchaseMetrics(row) {
+  if (!toNumber(row?.documentos)) return "sin historial de facturación";
+  return `promedio por factura ${money.format(toNumber(row.promedio_compra))} | mayor compra ${maximumPurchaseText(row)} | ${fmt.format(toNumber(row.documentos))} facturas válidas`;
+}
+
+function uniqueCustomerRows(rows) {
+  const customers = new Map();
+  rows.forEach(row => {
+    const key = String(row.codigo || normalizeLabel(row.cliente) || "").trim();
+    if (!key) return;
+    const existing = customers.get(key);
+    if (!existing || toNumber(row.venta_total) > toNumber(existing.venta_total)) customers.set(key, row);
+  });
+  return [...customers.values()];
+}
+
+function topInactiveCustomers(rows, limit = 10) {
+  return uniqueCustomerRows(rows)
+    .filter(row => toNumber(row.promedio_compra) > 0)
+    .sort((a, b) => toNumber(b.promedio_compra) - toNumber(a.promedio_compra) || toNumber(b.documentos) - toNumber(a.documentos) || daysWithoutPurchase(b) - daysWithoutPurchase(a))
+    .slice(0, limit);
 }
 
 function renderSellerMessages(rows) {
@@ -812,7 +855,7 @@ function renderSellerMessages(rows) {
   syncSellerMessageFilter(groups);
   const selectedSeller = sellerMessageFilter?.value || "";
   const visibleGroups = selectedSeller ? groups.filter(group => group.seller === selectedSeller) : groups;
-  const totalClients = visibleGroups.reduce((sum, group) => sum + group.pending.length, 0);
+  const totalClients = visibleGroups.reduce((sum, group) => sum + uniqueCustomerRows(group.pending).length, 0);
   const zoneText = selectedZones.length ? ` · ${fmt.format(selectedZones.length)} zona${selectedZones.length === 1 ? "" : "s"} seleccionada${selectedZones.length === 1 ? "" : "s"}` : " · todas las zonas";
   summary.textContent = `${fmt.format(totalClients)} clientes para activación mensual distribuidos en ${fmt.format(visibleGroups.length)} vendedores${zoneText}`;
 
@@ -824,18 +867,22 @@ function renderSellerMessages(rows) {
   container.innerHTML = visibleGroups.map(group => {
     const message = buildSellerMessage(group);
     const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
-    const recoveryPotential = recoveryPotentialOf(group.pending);
-    const preview = group.pending.slice(0, 5).map(row => `<li>${escapeHtml(shorten(row.cliente, 48))}<span>${escapeHtml(shorten(normalizeLabel(row.zona), 22))}</span></li>`).join("");
+    const pendingRows = uniqueCustomerRows(group.pending);
+    const recoveryPotential = recoveryPotentialOf(pendingRows);
+    const topCustomers = topInactiveCustomers(pendingRows);
+    const missingMaximum = pendingRows.some(row => toNumber(row.documentos) > 0 && !hasMaximumPurchase(row));
+    const preview = topCustomers.map((row, index) => `<li><b>${index + 1}</b><span>${escapeHtml(shorten(row.cliente, 42))}</span><em>${money.format(toNumber(row.promedio_compra))}</em></li>`).join("");
     return `
       <article class="sellerMessage">
         <div class="sellerMessageHead">
-          <div><span class="panelTag">WhatsApp</span><h3>${escapeHtml(group.seller)}</h3><p>Cartera ${fmt.format(group.portfolio.length)} · activos ${fmt.format(activeThisMonth)} · faltan ${fmt.format(group.pending.length)}</p><div class="recoveryPotential"><span>Potencial de recuperación</span><strong>${money.format(recoveryPotential)}</strong><small>Suma de las últimas facturas registradas</small></div></div>
+          <div><span class="panelTag">WhatsApp</span><h3>${escapeHtml(group.seller)}</h3><p>Cartera ${fmt.format(group.portfolio.length)} · activos ${fmt.format(activeThisMonth)} · faltan ${fmt.format(pendingRows.length)}</p><div class="recoveryPotential"><span>Oportunidad de próxima venta en total</span><strong>${money.format(recoveryPotential)}</strong><small>Estimación: suma de promedios por factura</small></div></div>
           <div class="sellerActions">
             <button class="copyButton" type="button" data-copy-seller="${escapeHtml(group.seller)}">Copiar mensaje</button>
             <button class="pdfButton" type="button" data-pdf-seller="${escapeHtml(group.seller)}">Descargar PDF</button>
           </div>
         </div>
-        <ul>${preview}</ul>
+        ${missingMaximum ? `<div class="dataWarning"><strong>Falta actualizar Apps Script</strong><span>El promedio está disponible, pero la mayor compra aún no llegó desde la fuente. Publique la nueva versión del script y pulse “Actualizar datos ahora”.</span></div>` : ""}
+        <div class="sellerTop"><strong>Top 10 oportunidades por promedio de compra</strong><small>Clientes inactivos ordenados por lo que normalmente compran en una factura.</small><ol>${preview || "<li><span>No hay promedios de compra para mostrar.</span></li>"}</ol></div>
         <textarea readonly>${escapeHtml(message)}</textarea>
       </article>`;
   }).join("");
@@ -931,50 +978,60 @@ function copyAllSellerMessages() {
 function sellerPdfHtml(group) {
   const selectedZones = selectedSellerZones();
   const activeThisMonth = group.portfolio.filter(row => row.estado_facturacion === "ACTIVO").length;
-  const pendingCount = group.pending.length;
-  const recoveryPotential = recoveryPotentialOf(group.pending);
+  const pendingRows = uniqueCustomerRows(group.pending).sort((a, b) => toNumber(b.promedio_compra) - toNumber(a.promedio_compra) || daysWithoutPurchase(b) - daysWithoutPurchase(a));
+  const pendingCount = pendingRows.length;
+  const recoveryPotential = recoveryPotentialOf(pendingRows);
+  const customersWithHistory = pendingRows.filter(row => toNumber(row.documentos) > 0);
+  const averagePotential = customersWithHistory.length ? recoveryPotential / customersWithHistory.length : 0;
+  const topCustomers = topInactiveCustomers(pendingRows);
+  const maxAverage = Math.max(...topCustomers.map(row => toNumber(row.promedio_compra)), 1);
   const zoneLabel = selectedZones.length ? selectedZones.join(", ") : "Todas las zonas";
   const generatedAt = new Date().toLocaleString("es-VE");
-  const rows = group.pending.map((row, index) => `
-    <tr>
-      <td>${index + 1}</td>
-      <td><strong>${escapeHtml(row.cliente)}</strong><small>Cód. ${escapeHtml(row.codigo || "-")}</small></td>
-      <td>${escapeHtml(normalizeLabel(row.zona))}</td>
-      <td>${escapeHtml(simpleSegment(row.segmento))}</td>
-      <td class="num">${escapeHtml(formatDaysWithoutPurchase(row))}</td>
-      <td>${escapeHtml(row.ultima_factura || "Sin factura")}</td>
-      <td class="num">${row.ultima_factura ? money.format(toNumber(row.monto_ultima_factura)) : "-"}</td>
-    </tr>`).join("");
+  const quality = data?.data_quality || {};
+  const duplicateNote = Number.isFinite(Number(quality.filas_duplicadas_omitidas))
+    ? `${fmt.format(toNumber(quality.filas_duplicadas_omitidas))} filas exactamente duplicadas fueron omitidas antes de calcular los promedios.`
+    : "Los promedios se calculan agrupando las líneas válidas por factura.";
+  const topCards = topCustomers.map((row, index) => {
+    const width = Math.max(5, Math.round((toNumber(row.promedio_compra) / maxAverage) * 100));
+    return `<article class="topCard"><div class="topRank">${index + 1}</div><div class="topMain"><strong>${escapeHtml(row.cliente)}</strong><span>${escapeHtml(normalizeLabel(row.zona) || "Sin zona")} · ${escapeHtml(formatDaysWithoutPurchase(row))}</span><div class="bar"><i style="width:${width}%"></i></div></div><div class="topValue"><b>${money.format(toNumber(row.promedio_compra))}</b><span>promedio / factura</span><small>Mayor ${escapeHtml(maximumPurchaseText(row))} · ${fmt.format(toNumber(row.documentos))} facturas</small></div></article>`;
+  }).join("") || `<p class="emptyState">No hay clientes con historial de facturación dentro de los filtros elegidos.</p>`;
+  const clientCards = pendingRows.map((row, index) => `<article class="clientCard"><div class="clientCardHead"><span>${String(index + 1).padStart(2, "0")}</span><div><h3>${escapeHtml(row.cliente)}</h3><p>${escapeHtml(normalizeLabel(row.zona) || "Sin zona")} · ${escapeHtml(simpleSegment(row.segmento))}</p></div></div><div class="clientMetrics"><div><label>Última compra</label><strong>${escapeHtml(row.ultima_factura || "Sin factura")}</strong></div><div><label>Días sin comprar</label><strong>${escapeHtml(formatDaysWithoutPurchase(row))}</strong></div><div><label>Promedio por factura</label><strong>${row.documentos ? money.format(toNumber(row.promedio_compra)) : "Sin historial"}</strong></div><div><label>Mayor compra registrada</label><strong>${escapeHtml(maximumPurchaseText(row))}</strong></div><div><label>Facturas válidas</label><strong>${fmt.format(toNumber(row.documentos))}</strong></div><div><label>Duplicados omitidos</label><strong>${fmt.format(toNumber(row.lineas_duplicadas_omitidas))}</strong></div></div></article>`).join("");
 
   return `<!doctype html>
   <html lang="es">
   <head>
     <meta charset="utf-8">
-    <title>Activación mensual · ${escapeHtml(group.seller)}</title>
+    <title>Plan de reactivación · ${escapeHtml(group.seller)}</title>
     <style>
-      *{box-sizing:border-box}body{margin:0;padding:28px;color:#10231c;font-family:Arial,Helvetica,sans-serif;background:#f5f7f1}.page{max-width:1120px;margin:auto;background:white;border:1px solid #dfe7e2;border-radius:22px;overflow:hidden}.hero{padding:28px 32px;background:linear-gradient(135deg,#071a14,#0d3a2b);color:white}.eyebrow{margin:0 0 8px;color:#b7f45d;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.hero h1{margin:0;font-size:30px;line-height:1.05}.hero p{margin:10px 0 0;color:#c9d8d2}.meta{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:18px 32px;background:#f8faf7;border-bottom:1px solid #dfe7e2}.card{padding:13px;border:1px solid #dfe7e2;border-radius:14px;background:white}.card.potential{border-color:#9ddc63;background:#f2ffe5}.card span{display:block;color:#66766f;font-size:10px;font-weight:800;text-transform:uppercase}.card strong{display:block;margin-top:5px;font-size:18px}.content{padding:24px 32px}.note{margin:0 0 16px;padding:13px 15px;border-radius:13px;background:#eef7f1;color:#0d3a2b;font-size:13px;line-height:1.45}table{width:100%;border-collapse:collapse;font-size:11px}th{padding:10px 8px;background:#10231c;color:white;text-align:left;text-transform:uppercase;font-size:9px;letter-spacing:.06em}td{padding:10px 8px;border-bottom:1px solid #e8eee9;vertical-align:top}td small{display:block;margin-top:3px;color:#66766f}.num{text-align:right;white-space:nowrap}tr:nth-child(even) td{background:#fbfcfa}.footer{padding:14px 32px;color:#66766f;font-size:10px;border-top:1px solid #dfe7e2}@media print{body{padding:0;background:white}.page{border:0;border-radius:0}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}button{display:none}thead{display:table-header-group}}
+      *{box-sizing:border-box}body{margin:0;padding:24px;color:#10231c;font-family:Arial,Helvetica,sans-serif;background:#edf2ed}.page{max-width:1120px;margin:0 auto 24px;background:#fff;border:1px solid #dfe7e2;border-radius:24px;overflow:hidden}.hero{padding:36px 38px;background:radial-gradient(circle at 84% 15%,#315f42 0,transparent 27%),linear-gradient(135deg,#061a13,#0c4230);color:#fff}.eyebrow{margin:0 0 10px;color:#b7f45d;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.hero h1{margin:0;font-size:36px;line-height:1.03;letter-spacing:-.045em}.hero p{max-width:680px;margin:12px 0 0;color:#c9d8d2;font-size:15px;line-height:1.45}.meta{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:18px 28px;background:#f8faf7;border-bottom:1px solid #dfe7e2}.card{min-height:85px;padding:14px;border:1px solid #dfe7e2;border-radius:15px;background:#fff}.card.potential{border-color:#9ddc63;background:#f2ffe5}.card span{display:block;color:#66766f;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.card strong{display:block;margin-top:7px;font-size:18px;letter-spacing:-.035em}.content{padding:28px}.note{margin:0 0 24px;padding:15px 17px;border-left:4px solid #9cdf45;border-radius:12px;background:#f2f8ed;color:#184130;font-size:13px;line-height:1.5}.sectionTag{margin:0;color:#16965d;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.sectionTitle{margin:5px 0 5px;font-size:23px;letter-spacing:-.04em}.sectionSub{margin:0 0 16px;color:#66766f;font-size:12px}.topGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.topCard{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e0e8e2;border-radius:14px;background:#fbfdf9;break-inside:avoid}.topRank{display:grid;place-items:center;flex:0 0 27px;height:27px;border-radius:9px;background:#0d3a2b;color:#b7f45d;font-weight:800;font-size:12px}.topMain{min-width:0;flex:1}.topMain strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.topMain span{display:block;margin-top:3px;color:#66766f;font-size:10px}.bar{height:5px;margin-top:8px;overflow:hidden;border-radius:999px;background:#e5eee6}.bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#2abd72,#9cdf45)}.topValue{text-align:right;white-space:nowrap}.topValue b{display:block;font-size:12px}.topValue span,.topValue small{display:block;color:#66766f;font-size:9px}.topValue small{margin-top:3px}.detailBreak{page-break-before:always}.detailHeader{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:18px}.detailHeader h2{margin:5px 0 0;font-size:25px;letter-spacing:-.04em}.detailHeader p{margin:0;color:#66766f;font-size:11px;text-align:right}.clientGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.clientCard{padding:14px;border:1px solid #dfe7e2;border-radius:15px;background:#fff;break-inside:avoid;page-break-inside:avoid}.clientCardHead{display:flex;gap:10px;align-items:flex-start}.clientCardHead>span{display:grid;place-items:center;flex:0 0 27px;height:27px;border-radius:9px;background:#eef7f1;color:#12714b;font-size:10px;font-weight:800}.clientCard h3{margin:0;font-size:12px;line-height:1.25}.clientCard p{margin:3px 0 0;color:#66766f;font-size:10px}.clientMetrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:13px;padding-top:11px;border-top:1px solid #eaf0eb}.clientMetrics label{display:block;color:#718078;font-size:8px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.clientMetrics strong{display:block;margin-top:3px;font-size:11px;line-height:1.25}.emptyState{color:#66766f;font-size:13px}.footer{padding:15px 28px;color:#66766f;font-size:10px;border-top:1px solid #dfe7e2}@media(max-width:720px){body{padding:0}.page{border-radius:0}.meta,.topGrid,.clientGrid{grid-template-columns:1fr}.hero,.content{padding:24px}.meta{padding:16px}.detailHeader{display:block}.detailHeader p{text-align:left;margin-top:6px}}@media print{body{padding:0;background:#fff}.page{border:0;border-radius:0;box-shadow:none;max-width:none}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}.meta,.card,.topCard,.clientCard,.note{-webkit-print-color-adjust:exact;print-color-adjust:exact}.detailBreak{page-break-before:always}button{display:none}}
     </style>
   </head>
   <body>
     <section class="page">
       <div class="hero">
-        <p class="eyebrow">BIPA · Activación mensual</p>
+        <p class="eyebrow">BIPA · Plan de activación mensual</p>
         <h1>${escapeHtml(group.seller)}</h1>
-        <p>Clientes pendientes por activar según los filtros actuales del portal.</p>
+        <p>Una guía comercial para enfocar clientes que, en promedio, realizan compras de mayor valor cuando se reactivan.</p>
       </div>
       <div class="meta">
         <div class="card"><span>Total cartera</span><strong>${fmt.format(group.portfolio.length)}</strong></div>
         <div class="card"><span>Activos en el mes</span><strong>${fmt.format(activeThisMonth)}</strong></div>
         <div class="card"><span>Pendientes</span><strong>${fmt.format(pendingCount)}</strong></div>
-        <div class="card potential"><span>Potencial de recuperación</span><strong>${money.format(recoveryPotential)}</strong></div>
+        <div class="card potential"><span>Oportunidad de venta total</span><strong>${money.format(recoveryPotential)}</strong></div>
         <div class="card"><span>Zonas filtradas</span><strong>${selectedZones.length ? fmt.format(selectedZones.length) : "Todas"}</strong></div>
       </div>
       <div class="content">
-        <p class="note"><strong>Potencial de recuperación estimado:</strong> ${money.format(recoveryPotential)}. Corresponde a la suma de la última factura registrada de cada cliente pendiente; es una referencia para priorizar la gestión, no una venta garantizada.<br><strong>Zonas del reporte:</strong> ${escapeHtml(zoneLabel)}.</p>
-        <table>
-          <thead><tr><th>#</th><th>Cliente</th><th>Zona</th><th>Situación</th><th class="num">Días sin compra</th><th>Última factura</th><th class="num">Monto última factura</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <p class="note"><strong>Oportunidad de próxima venta en total:</strong> ${money.format(recoveryPotential)}. Es una estimación obtenida al sumar los promedios por factura de ${fmt.format(customersWithHistory.length)} clientes con historial, eliminando clientes repetidos y filas exactamente duplicadas. El promedio de oportunidad por cliente es ${money.format(averagePotential)}. La mayor compra se muestra aparte como referencia motivacional. <strong>No representa una venta garantizada.</strong><br><strong>Control aplicado:</strong> ${escapeHtml(duplicateNote)}<br><strong>Zonas incluidas:</strong> ${escapeHtml(zoneLabel)}.</p>
+        <p class="sectionTag">Oportunidades prioritarias</p>
+        <h2 class="sectionTitle">Top 10 oportunidades por promedio de compra</h2>
+        <p class="sectionSub">Ordenados por el valor promedio de una factura, no por el histórico acumulado.</p>
+        <div class="topGrid">${topCards}</div>
+      </div>
+    </section>
+    <section class="page detailBreak">
+      <div class="content">
+        <div class="detailHeader"><div><p class="sectionTag">Gestión detallada</p><h2>Clientes por reactivar</h2></div><p>${fmt.format(pendingCount)} clientes únicos pendientes<br>según los filtros elegidos.</p></div>
+        <div class="clientGrid">${clientCards}</div>
       </div>
       <div class="footer">Generado desde el portal BIPA el ${escapeHtml(generatedAt)}. La información se calcula con la hoja CLIENTES y los registros de FACTURACIÓN disponibles.</div>
     </section>
@@ -1022,6 +1079,7 @@ function renderDetailPanel(rows) {
       <div><label>Última compra</label><strong>${selectedRow.ultima_factura || "-"}</strong></div>
       <div><label>Monto última factura</label><strong>${selectedRow.ultima_factura ? money.format(Number(selectedRow.monto_ultima_factura) || 0) : "-"}</strong></div>
       <div><label>Promedio por compra</label><strong>${selectedRow.documentos ? money.format(Number(selectedRow.promedio_compra) || 0) : "-"}</strong></div>
+      <div><label>Mayor compra registrada</label><strong>${escapeHtml(maximumPurchaseText(selectedRow))}</strong></div>
       <div><label>Días sin comprar</label><strong>${formatDaysWithoutPurchase(selectedRow)}</strong></div>
       <div><label>Histórico anual</label><strong>${money.format(Number(selectedRow.venta_total) || 0)}</strong></div>
       <div><label>Saldo total</label><strong>${money.format(Number(selectedRow.saldo_total) || 0)}</strong></div>
@@ -1036,7 +1094,7 @@ function renderDetailPanel(rows) {
 
 function downloadCSV() {
   const rows = currentRows();
-  const headers = ["codigo","cliente","vendedor","estado_asignacion","activo_hoja_clientes","zona","tipo_cliente","estado_facturacion","segmento","primera_factura","ultima_factura","dias_sin_facturar","monto_ultima_factura","promedio_compra","venta_total","saldo_total"];
+  const headers = ["codigo","cliente","vendedor","estado_asignacion","activo_hoja_clientes","zona","tipo_cliente","estado_facturacion","segmento","primera_factura","ultima_factura","dias_sin_facturar","monto_ultima_factura","promedio_compra","monto_maximo_factura","documentos","lineas_duplicadas_omitidas","venta_total","saldo_total"];
   const csv = [headers.join(",")].concat(rows.map(row => headers.map(h => {
     const value = h === "dias_sin_facturar" ? formatDaysWithoutPurchase(row) : row[h] ?? "";
     return `"${String(value).replaceAll('"', '""')}"`;
