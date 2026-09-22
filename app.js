@@ -1,7 +1,9 @@
 const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycby-04Usb_MBXAxG7O-FtV8VpogxrzgiAjD0AUyCujMIrpBla6U8RdDHPjfBF5FKRz4L/exec";
+const LIVE_REFRESH_INTERVAL_MS = 120000;
 
 let data = null;
 let detail = [];
+let isRefreshingRemote = false;
 const filters = {
   seller: document.getElementById("sellerFilter"),
   assignment: document.getElementById("assignmentFilter"),
@@ -1015,7 +1017,7 @@ function showDataLoadMessage(title, message) {
   if (headline) headline.textContent = title;
   if (text) text.textContent = message;
   if (period) period.textContent = "Sin datos cargados";
-  setLiveStatus("error", "Sin conexión a Google Sheets", "No se pudo leer la información en vivo.");
+  setLiveStatus("error", "Sin conexion a Google Sheets", message || "No se pudo leer la informacion en vivo.");
 }
 
 function setLiveStatus(kind, label, detailText = "") {
@@ -1103,19 +1105,20 @@ function loadJsonpWithTimeout(url, timeout = 8500) {
 
 async function readRemotePayload() {
   try {
-    return validateRemotePayload(await fetchJsonWithTimeout(REMOTE_DATA_URL, 7500));
-  } catch (jsonError) {
+    return validateRemotePayload(await loadJsonpWithTimeout(REMOTE_DATA_URL, 45000));
+  } catch (jsonpError) {
     try {
-      return validateRemotePayload(await loadJsonpWithTimeout(REMOTE_DATA_URL, 9500));
-    } catch (jsonpError) {
-      const message = jsonError?.message || jsonpError?.message || "No se pudo leer Google Sheets.";
+      return validateRemotePayload(await fetchJsonWithTimeout(REMOTE_DATA_URL, 30000));
+    } catch (jsonError) {
+      const message = jsonpError?.message || jsonError?.message || "No se pudo leer Google Sheets.";
       throw new Error(message);
     }
   }
 }
 
 async function refreshFromRemote() {
-  if (!REMOTE_DATA_URL) return false;
+  if (!REMOTE_DATA_URL || isRefreshingRemote) return false;
+  isRefreshingRemote = true;
   try {
     const payload = await readRemotePayload();
     return applyData(payload, "remote");
@@ -1124,24 +1127,9 @@ async function refreshFromRemote() {
     window.BIPA_LAST_REMOTE_ERROR = error?.message || String(error);
     setLiveStatus("error", "Sin conexion a Google Sheets", window.BIPA_LAST_REMOTE_ERROR);
     return false;
+  } finally {
+    isRefreshingRemote = false;
   }
-}
-
-async function loadLocalFallback() {
-  if (window.ACTIVATION_DATA && Array.isArray(window.ACTIVATION_DATA.detail)) {
-    return applyData(window.ACTIVATION_DATA, "local");
-  }
-
-  for (const url of ["data.json", "./data.json"]) {
-    try {
-      const payload = await fetchJsonWithTimeout(url, 2500);
-      if (applyData(payload, "local")) return true;
-    } catch (error) {
-      console.warn(`No se pudo cargar respaldo ${url}:`, error);
-    }
-  }
-
-  return false;
 }
 
 async function boot() {
@@ -1155,26 +1143,23 @@ async function boot() {
     refreshButton.disabled = false;
     refreshButton.textContent = "Actualizar datos ahora";
   });
+  setLiveStatus("loading", "Conectando con Google Sheets", "Leyendo informacion en vivo desde la hoja.");
   const remoteLoadedFirst = await refreshFromRemote();
-  const hasLocalData = remoteLoadedFirst ? true : await loadLocalFallback();
-  if (!remoteLoadedFirst && hasLocalData) {
-    setLiveStatus("offline", "Mostrando respaldo local", window.BIPA_LAST_REMOTE_ERROR || "Estos datos no son en tiempo real. Revise la conexion a Google Sheets.");
-  }
-  if (!hasLocalData) {
+  if (!remoteLoadedFirst) {
     data = { start: "", cutoff: "", detail: [] };
     detail = [];
     refreshFilterOptions();
     showDataLoadMessage(
-      "No se encontraron datos para mostrar.",
-      "El portal no recibió información de Google Sheets y tampoco encontró un respaldo válido. Suba el archivo data.js actualizado a GitHub o revise la publicación del Apps Script."
+      "No se pudo conectar con Google Sheets.",
+      window.BIPA_LAST_REMOTE_ERROR || "Revise que el Apps Script este publicado como Web App para cualquier persona."
     );
   }
-  if (!hasLocalData) {
-    showDataLoadMessage(
-      "No se encontraron datos para mostrar.",
-      "El portal no recibió información de Google Sheets y tampoco encontró un respaldo válido. Suba data.js junto con index.html, app.js y styles.css."
-    );
-  }
+  window.setInterval(() => {
+    refreshFromRemote();
+  }, LIVE_REFRESH_INTERVAL_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshFromRemote();
+  });
 }
 
 boot();
