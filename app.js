@@ -1,4 +1,4 @@
-const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbwOz9ZSl8RsQVqIX9Zz06eQ6v2bI7gzMPKhn_HIpefbcNXzXFDfgh00ZBpJkHabNuwp/exec";
+const REMOTE_DATA_URL = "https://script.google.com/macros/s/AKfycbwOz9ZSl8RsQVqIX9Zz06eQ6v2bI7gzMPkHn_HIpefbcNXzXFDfgh00ZBpJkHabNuwp/exec";
 
 let data = null;
 let detail = [];
@@ -1027,15 +1027,27 @@ function setLiveStatus(kind, label, detailText = "") {
   if (updated && detailText) updated.textContent = detailText;
 }
 
-function applyData(payload) {
+function validateRemotePayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Google Sheets no devolvio un paquete de datos valido.");
+  }
+  if (!Array.isArray(payload.detail) || !payload.detail.length) {
+    throw new Error("Google Sheets respondio, pero no envio clientes para analizar.");
+  }
+  return payload;
+}
+
+function applyData(payload, source = "remote") {
   if (!payload || !Array.isArray(payload.detail) || !payload.detail.length) return false;
   data = payload;
   detail = payload.detail || [];
   const generated = payload.generated_at ? new Date(payload.generated_at) : null;
-  const generatedText = generated && !Number.isNaN(generated.getTime())
-    ? `Lectura en vivo: ${generated.toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`
-    : "Lectura en vivo desde Google Sheets";
-  setLiveStatus("live", "Conectado a Google Sheets", generatedText);
+  if (source === "remote") {
+    const generatedText = generated && !Number.isNaN(generated.getTime())
+      ? `Lectura en vivo: ${generated.toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`
+      : "Lectura en vivo desde Google Sheets";
+    setLiveStatus("live", "Conectado a Google Sheets", generatedText);
+  }
   refreshFilterOptions();
   render();
   return true;
@@ -1045,9 +1057,15 @@ async function fetchJsonWithTimeout(url, timeout = 6500) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    const separator = url.includes("?") ? "&" : "?";
+    const response = await fetch(`${url}${separator}t=${Date.now()}`, { cache: "no-store", signal: controller.signal });
     if (!response.ok) throw new Error(`Respuesta ${response.status}`);
-    return await response.json();
+    const contentType = response.headers.get("content-type") || "";
+    const text = await response.text();
+    if (contentType.includes("text/html") || text.trim().startsWith("<!DOCTYPE html") || text.trim().startsWith("<html")) {
+      throw new Error("El enlace de Apps Script devolvio una pagina de Google, no datos. Revise permisos y despliegue.");
+    }
+    return JSON.parse(text);
   } finally {
     clearTimeout(timer);
   }
@@ -1076,33 +1094,48 @@ function loadJsonpWithTimeout(url, timeout = 8500) {
 
     script.onerror = () => {
       cleanup();
-      reject(new Error("No se pudo cargar el script de datos"));
+      reject(new Error("El enlace de Apps Script no pudo cargarse como datos publicos."));
     };
     script.src = `${url}${separator}callback=${encodeURIComponent(callbackName)}&t=${Date.now()}`;
     document.head.appendChild(script);
   });
 }
 
+async function readRemotePayload() {
+  try {
+    return validateRemotePayload(await fetchJsonWithTimeout(REMOTE_DATA_URL, 7500));
+  } catch (jsonError) {
+    try {
+      return validateRemotePayload(await loadJsonpWithTimeout(REMOTE_DATA_URL, 9500));
+    } catch (jsonpError) {
+      const message = jsonError?.message || jsonpError?.message || "No se pudo leer Google Sheets.";
+      throw new Error(message);
+    }
+  }
+}
+
 async function refreshFromRemote() {
   if (!REMOTE_DATA_URL) return false;
   try {
-    const payload = await loadJsonpWithTimeout(REMOTE_DATA_URL);
-    return applyData(payload);
+    const payload = await readRemotePayload();
+    return applyData(payload, "remote");
   } catch (error) {
     console.warn("No se pudo actualizar desde Google Sheets.", error);
+    window.BIPA_LAST_REMOTE_ERROR = error?.message || String(error);
+    setLiveStatus("error", "Sin conexion a Google Sheets", window.BIPA_LAST_REMOTE_ERROR);
     return false;
   }
 }
 
 async function loadLocalFallback() {
   if (window.ACTIVATION_DATA && Array.isArray(window.ACTIVATION_DATA.detail)) {
-    return applyData(window.ACTIVATION_DATA);
+    return applyData(window.ACTIVATION_DATA, "local");
   }
 
   for (const url of ["data.json", "./data.json"]) {
     try {
       const payload = await fetchJsonWithTimeout(url, 2500);
-      if (applyData(payload)) return true;
+      if (applyData(payload, "local")) return true;
     } catch (error) {
       console.warn(`No se pudo cargar respaldo ${url}:`, error);
     }
@@ -1118,14 +1151,14 @@ async function boot() {
     refreshButton.textContent = "Actualizando…";
     setLiveStatus("loading", "Consultando Google Sheets…", "Espere un momento mientras se lee la hoja.");
     const ok = await refreshFromRemote();
-    if (!ok) setLiveStatus("error", "No se pudo actualizar", "Revise la publicación del Apps Script y vuelva a intentar.");
+    if (!ok) setLiveStatus("error", "No se pudo actualizar", window.BIPA_LAST_REMOTE_ERROR || "Revise la publicacion del Apps Script y vuelva a intentar.");
     refreshButton.disabled = false;
     refreshButton.textContent = "Actualizar datos ahora";
   });
   const remoteLoadedFirst = await refreshFromRemote();
   const hasLocalData = remoteLoadedFirst ? true : await loadLocalFallback();
   if (!remoteLoadedFirst && hasLocalData) {
-    setLiveStatus("offline", "Mostrando respaldo local", "Estos datos no son en tiempo real. Revise la conexión a Google Sheets.");
+    setLiveStatus("offline", "Mostrando respaldo local", window.BIPA_LAST_REMOTE_ERROR || "Estos datos no son en tiempo real. Revise la conexion a Google Sheets.");
   }
   if (!hasLocalData) {
     data = { start: "", cutoff: "", detail: [] };
