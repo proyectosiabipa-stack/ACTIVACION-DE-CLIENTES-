@@ -1,0 +1,34 @@
+name: Actualizar Portal
+
+on:
+  push:
+    paths:
+      - 'data/**'
+      - 'portal/**'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependencias
+        run: |
+          pip install pandas openpyxl
+
+      - name: Procesar datos
+        run: python scripts/procesar_datos.py
+
+      - name: Generar portal
+        run: python scripts/generar_portal.py
+
+      - name: Commit cambios
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -A
+          git commit -m "Auto: actualizar portal" || echo "Sin cambios"
+          git push
