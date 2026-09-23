@@ -6,29 +6,17 @@ on:
       - 'data/**'
       - 'portal/**'
   workflow_dispatch:
-  schedule:
-    - cron: '0 */6 * * *'
 
 jobs:
-  actualizar:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar dependencias
-        run: |
-          pip install pandas openpyxl
-
-      - name: Procesar datos
-        run: python scripts/procesar_datos.py
-
-      - name: Generar portal
-        run: python scripts/generar_portal.py
-
-      - name: Commit cambios
+      - name: Commit if needed
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add -A
-          git commit -m "Auto: actualizar portal" || echo "Sin cambios"
-          git push
+          git commit -m "Auto: actualizar" || echo "Sin cambios"
+          git push || echo "Sin cambios"
