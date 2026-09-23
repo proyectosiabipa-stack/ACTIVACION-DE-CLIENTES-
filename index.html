@@ -2,13 +2,13 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071a14">
-  <title>BIPA · Centro de inteligencia comercial</title><link rel="stylesheet" href="styles.css?v=20260922-15">
+  <title>BIPA Cartera Inteligente</title><link rel="stylesheet" href="styles.css?v=20260922-15">
 </head>
 <body>
   <div class="ambient ambientOne"></div><div class="ambient ambientTwo"></div>
   <header class="topbar">
-    <a class="brand" href="#inicio"><span class="brandLogoWrap"><img src="assets/logo.svg" alt="BIPA"></span><span><strong>BIPA</strong><small>Inteligencia comercial</small></span></a>
-    <nav><a href="#dashboard" data-view-link="dashboard">Dashboard</a><a href="#enviar" data-view-link="send">Enviar a vendedor</a></nav>
+    <a class="brand" href="#inicio"><span class="brandLogoWrap"><img src="assets/logo.svg" alt="BIPA Cartera Inteligente"></span><span><strong>BIPA Cartera Inteligente</strong><small>Gestión comercial</small></span></a>
+    <nav><a href="#dashboard" data-view-link="dashboard">Dashboard</a><a href="#enviar" data-view-link="send">Enviar a vendedor</a><a href="#resumen-final" data-view-link="final">Resumen final</a><a href="#articulos" data-view-link="articles">Artículos</a></nav>
     <button id="exportBtn" class="exportButton" type="button"><span>↓</span> Exportar vista</button>
   </header>
   <main class="shell" id="inicio">
@@ -85,10 +85,47 @@
       </div>
       <div id="sellerMessages" class="sellerMessages"></div>
     </section>
+    <section id="resumen-final" class="sectionBlock reveal finalOnly">
+      <div class="sectionHeading"><div><span class="sectionNumber">06</span><p class="eyebrow">Resumen final</p><h2>Cierre por mes o rango de meses</h2></div><p>Seleccione uno o varios meses para revisar resultados históricos sin mezclarlo con la lectura actual de la cartera.</p></div>
+      <div class="finalToolbar">
+        <div><strong id="finalSummary">Seleccione el periodo a revisar</strong><small>La lectura se calcula con las compras registradas dentro de los meses elegidos.</small></div>
+        <div class="monthPicker" id="finalMonthPicker">
+          <span>Meses del análisis</span>
+          <div id="finalMonthOptions" class="monthOptions"></div>
+        </div>
+        <button id="finalClearMonths" class="resetButton" type="button">Ver todo</button>
+      </div>
+      <div class="finalKpis" id="finalKpis"></div>
+      <div class="finalInsight" id="finalInsight"></div>
+      <div class="finalGrid">
+        <article class="panel"><span class="panelTag">Evolución</span><h2>Resultado por mes</h2><p class="panelIntro">Clientes que compraron y venta total registrada en cada mes seleccionado.</p><div id="finalMonthBars" class="bars compact"></div></article>
+        <article class="panel"><span class="panelTag">Vendedores</span><h2>Resultado por vendedor</h2><p class="panelIntro">Ranking de cartera activada y ventas dentro del periodo.</p><div class="tableWrap finalTableWrap"><table id="finalSellerTable"></table></div></article>
+        <article class="panel"><span class="panelTag">Zonas</span><h2>Resultado por zona</h2><p class="panelIntro">Dónde se concentró la facturación del periodo.</p><div class="tableWrap finalTableWrap"><table id="finalZoneTable"></table></div></article>
+        <article class="panel full"><span class="panelTag">Clientes</span><h2>Clientes facturados del periodo</h2><p class="panelIntro">Lista de clientes que sí compraron dentro del rango seleccionado.</p><div class="tableWrap large"><table id="finalClientTable"></table></div></article>
+      </div>
+    </section>
+    <section id="articulos" class="sectionBlock reveal articleOnly">
+      <div class="sectionHeading"><div><span class="sectionNumber">07</span><p class="eyebrow">Artículos</p><h2>Análisis comercial de productos</h2></div><p>Revise qué productos mueven más venta, unidades y peso para entender el comportamiento real del portafolio.</p></div>
+      <div class="articleToolbar">
+        <div><strong id="articleSummary">Preparando análisis de artículos</strong><small>Incluye venta, unidades, clientes compradores y estadísticas por peso.</small></div>
+        <label>Buscar artículo<input id="articleSearchInput" type="search" placeholder="Producto o código…"></label>
+        <div class="monthPicker" id="articleMonthPicker"><span>Meses</span><div id="articleMonthOptions" class="monthOptions"></div></div>
+        <button id="articleClearMonths" class="resetButton" type="button">Ver todo</button>
+      </div>
+      <div id="articleEmptyState" class="articleEmptyState"></div>
+      <div class="articleKpis" id="articleKpis"></div>
+      <div class="articleGrid">
+        <article class="panel"><span class="panelTag">Peso</span><h2>Top artículos por peso</h2><p class="panelIntro">Productos con mayor volumen de peso registrado.</p><div id="articleWeightBars" class="bars compact"></div></article>
+        <article class="panel"><span class="panelTag">Venta</span><h2>Top artículos por venta</h2><p class="panelIntro">Productos que más facturación generan.</p><div id="articleSalesBars" class="bars compact"></div></article>
+        <article class="panel"><span class="panelTag">Unidades</span><h2>Top artículos por unidades</h2><p class="panelIntro">Productos con mayor salida por cantidad.</p><div id="articleUnitBars" class="bars compact"></div></article>
+        <article class="panel"><span class="panelTag">Eficiencia</span><h2>Venta por peso</h2><p class="panelIntro">Cuánto ingreso genera cada unidad de peso registrada.</p><div id="articleWeightValueBars" class="bars compact"></div></article>
+        <article class="panel full"><span class="panelTag">Detalle</span><h2>Ranking general de artículos</h2><p class="panelIntro">Tabla ordenada por venta dentro del periodo seleccionado.</p><div class="tableWrap large"><table id="articleTable"></table></div></article>
+      </div>
+    </section>
     <aside class="detailPanel dashboardOnly" id="detailPanel"><div class="panelHead"><div><span class="panelTag">Ficha individual</span><h2>Detalle del cliente</h2><p id="detailClientTitle">Seleccione un cliente.</p></div><button id="closeDetailBtn" class="ghostButton">Cerrar ×</button></div><div id="detailClientContent" class="detailContent"></div></aside>
-    <footer><span>BIPA · Inteligencia comercial</span><p>Estado calculado exclusivamente a partir de la facturación registrada.</p></footer>
+    <footer><span>BIPA Cartera Inteligente</span><p>Estado calculado exclusivamente a partir de la facturación registrada.</p></footer>
   </main>
-<div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="app.js?v=20260922-16"></script>
+<div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="app.js?v=20260923-02"></script>
 </body></html>
 
 
