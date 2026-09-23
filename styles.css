@@ -101,25 +101,40 @@
 .sellerMessageHead{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
 .sellerMessage h3{font:800 20px Manrope;margin:4px 0 4px;letter-spacing:-.03em}.sellerMessage p{margin:0;color:var(--muted);font-size:11px}
 .recoveryPotential{display:inline-grid;gap:2px;margin-top:12px;padding:9px 11px;border:1px solid #b8eb89;border-radius:11px;background:#f2ffe6;color:var(--forest)}.recoveryPotential span{font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.recoveryPotential strong{font:800 18px Manrope;letter-spacing:-.04em}.recoveryPotential small{color:#4b665a;font-size:9px}
+.dataWarning{display:grid;gap:3px;margin:14px 0 0;padding:10px 12px;border:1px solid #fdba74;border-radius:11px;background:#fff7ed;color:#9a3412}.dataWarning strong{font-size:10px;text-transform:uppercase;letter-spacing:.06em}.dataWarning span{font-size:10px;line-height:1.4}
 .sellerActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .copyButton{height:38px;padding:0 13px;border:0;border-radius:11px;background:var(--deep);color:white;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
 .pdfButton{height:38px;padding:0 13px;border:1px solid var(--line);border-radius:11px;background:#eef7f1;color:var(--forest);font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
 .pdfButton:hover{border-color:var(--green);background:#ddf7e9}
-.sellerMessage ul{display:grid;gap:6px;margin:16px 0;padding:0;list-style:none}
-.sellerMessage li{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:10px;background:#f6f8f5;font-size:11px}
-.sellerMessage li span{color:#9a3412;font-weight:800;white-space:nowrap}
+.sellerTop{margin:16px 0;padding:12px;border-radius:13px;background:#f6f8f5}.sellerTop>strong{display:block;color:var(--forest);font-size:11px}.sellerTop>small{display:block;margin-top:3px;color:var(--muted);font-size:9px}.sellerTop ol{display:grid;gap:5px;margin:10px 0 0;padding:0;list-style:none}.sellerTop li{display:grid;grid-template-columns:19px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border-radius:8px;background:#fff;font-size:10px}.sellerTop li b{display:grid;place-items:center;width:18px;height:18px;border-radius:6px;background:#e8f6df;color:var(--forest);font-size:9px}.sellerTop li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sellerTop li em{color:#14724d;font-size:10px;font-style:normal;font-weight:800;white-space:nowrap}
 .sellerMessage textarea{width:100%;min-height:210px;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fbfcfa;color:var(--ink);font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
 @media(max-width:900px){.sellerMessages{grid-template-columns:1fr}.sendToolbar{display:block}.sendToolbar .resetButton{margin-top:12px}}
-body.sendMode .dashboardOnly{display:none!important}
-body.dashboardMode .sendOnly{display:none!important}
+body.sendMode .dashboardOnly,body.sendMode .finalOnly,body.sendMode .articleOnly{display:none!important}
+body.dashboardMode .sendOnly,body.dashboardMode .finalOnly,body.dashboardMode .articleOnly{display:none!important}
+body.finalMode .dashboardOnly,body.finalMode .sendOnly,body.finalMode .articleOnly{display:none!important}
+body.articleMode .dashboardOnly,body.articleMode .sendOnly,body.articleMode .finalOnly{display:none!important}
 body.sendMode #enviar{padding-top:34px}
+body.finalMode #resumen-final{padding-top:34px}
+body.articleMode #articulos{padding-top:34px}
 body.sendMode #exportBtn{display:none}
+body.finalMode #exportBtn{display:none}
+body.articleMode #exportBtn{display:none}
 nav a.active{color:var(--forest);font-weight:800}
+
+.finalToolbar{display:grid;grid-template-columns:1fr 1.3fr auto;align-items:end;gap:16px;margin-bottom:14px;padding:18px 20px;border:1px solid var(--line);border-radius:18px;background:white;box-shadow:0 12px 34px rgba(12,42,31,.05)}
+.finalToolbar strong,.finalToolbar small{display:block}.finalToolbar strong{font:800 18px Manrope}.finalToolbar small{margin-top:4px;color:var(--muted);font-size:11px}
+.monthPicker{display:grid;gap:8px}.monthPicker>span{color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.monthOptions{display:flex;flex-wrap:wrap;gap:7px}.monthOption{cursor:pointer}.monthOption input{position:absolute;opacity:0;pointer-events:none}.monthOption span{display:grid;place-items:center;min-height:38px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:#f8faf7;color:var(--forest);font-size:11px;font-weight:800;transition:.2s}.monthOption input:checked+span{border-color:var(--green);background:var(--deep);color:white}
+.finalKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.finalKpi{min-height:112px}.finalInsight{margin:14px 0}.finalInsight article{padding:20px 22px;border-radius:18px;background:linear-gradient(135deg,#082017,#153f2f);color:white;box-shadow:0 18px 45px rgba(7,26,20,.13)}.finalInsight span{display:block;margin-bottom:8px;color:var(--lime);text-transform:uppercase;letter-spacing:.14em;font-size:10px;font-weight:800}.finalInsight strong{display:block;font:800 23px Manrope;letter-spacing:-.035em}.finalInsight p{max-width:980px;margin:8px 0 0;color:#c7d9d1;font-size:12px;line-height:1.55}
+.finalGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.finalGrid .full{grid-column:1/-1}.finalTableWrap{max-height:390px}
+.articleToolbar{display:grid;grid-template-columns:1fr minmax(190px,.7fr) 1.2fr auto;align-items:end;gap:16px;margin-bottom:14px;padding:18px 20px;border:1px solid var(--line);border-radius:18px;background:white;box-shadow:0 12px 34px rgba(12,42,31,.05)}
+.articleToolbar strong,.articleToolbar small{display:block}.articleToolbar strong{font:800 18px Manrope}.articleToolbar small{margin-top:4px;color:var(--muted);font-size:11px}.articleToolbar label{display:grid;gap:6px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.articleToolbar input[type=search]{height:44px;border:1px solid var(--line);border-radius:12px;background:#f8faf7;color:var(--ink);padding:0 12px;outline:0}.articleToolbar input[type=search]:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(32,178,107,.1);background:white}
+.articleKpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.articleKpi{min-height:112px}.articleGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.articleGrid .full{grid-column:1/-1}.articleEmptyState{margin-bottom:14px}
 
 @media(max-width:760px){
   .topbar{position:sticky;top:0;display:grid;grid-template-columns:1fr;gap:10px;height:auto;padding-top:10px;padding-bottom:10px}
   .brand{justify-content:center}.brandMark{width:34px;height:34px;border-radius:10px}
-  .topbar nav{display:grid!important;grid-template-columns:1fr 1fr;gap:8px;width:100%;margin:0}
+  .topbar nav{display:grid!important;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;margin:0}
   .topbar nav a{display:grid;place-items:center;min-height:42px;border:1px solid var(--line);border-radius:12px;background:white;font-size:12px}
   .topbar nav a.active{background:var(--deep);color:white;border-color:var(--deep)}
   .exportButton{display:none}
@@ -150,9 +165,7 @@ nav a.active{color:var(--forest);font-weight:800}
   .sellerMessage p{font-size:10px;line-height:1.35}
   .sellerActions{display:grid;grid-template-columns:1fr;gap:8px;justify-content:stretch}
   .copyButton,.pdfButton{width:100%;height:48px;font-size:12px}
-  .sellerMessage ul{margin:12px 0;gap:5px}
-  .sellerMessage li{display:block;padding:9px 10px;font-size:11px;line-height:1.25}
-  .sellerMessage li span{display:block;margin-top:4px;white-space:normal;font-size:10px;color:var(--muted)}
+  .sellerTop{margin:12px 0}.sellerTop li{grid-template-columns:19px minmax(0,1fr) auto;padding:8px;font-size:10px}.sellerTop li span{white-space:nowrap;font-size:10px}
   .sellerMessage textarea{min-height:190px;max-height:310px;font-size:12px;line-height:1.45}
   body.dashboardMode .hero{padding:24px 18px;border-radius:18px}
   body.dashboardMode .hero h1{font-size:2rem;letter-spacing:-.03em}
@@ -164,10 +177,32 @@ nav a.active{color:var(--forest);font-weight:800}
   body.dashboardMode .kpi small{display:none}
   body.dashboardMode .highlightStrip,.dashboard,.tables{grid-template-columns:1fr}
   body.dashboardMode .executivePanel{padding:18px;border-radius:16px}
+  body.finalMode #resumen-final{padding-top:12px}
+  body.finalMode #resumen-final .sectionHeading{display:block;margin-bottom:12px}
+  body.finalMode #resumen-final .sectionHeading>div{padding-left:0}
+  body.finalMode #resumen-final .sectionNumber{display:none}
+  body.finalMode #resumen-final .sectionHeading>p{display:block;text-align:left;max-width:none;margin-top:8px;font-size:12px}
+  .finalToolbar{grid-template-columns:1fr;padding:14px;border-radius:16px}.finalToolbar strong{font-size:15px}
+  .monthOptions{display:grid;grid-template-columns:1fr 1fr}.monthOption span{min-height:44px}
+  .finalKpis{grid-template-columns:1fr 1fr;gap:8px}.finalKpi{min-height:104px}
+  .finalInsight article{padding:17px;border-radius:16px}.finalInsight strong{font-size:18px}
+  .finalGrid{grid-template-columns:1fr}
+  .finalGrid table{min-width:650px}
+  body.articleMode #articulos{padding-top:12px}
+  body.articleMode #articulos .sectionHeading{display:block;margin-bottom:12px}
+  body.articleMode #articulos .sectionHeading>div{padding-left:0}
+  body.articleMode #articulos .sectionNumber{display:none}
+  body.articleMode #articulos .sectionHeading>p{display:block;text-align:left;max-width:none;margin-top:8px;font-size:12px}
+  .articleToolbar{grid-template-columns:1fr;padding:14px;border-radius:16px}.articleToolbar strong{font-size:15px}.articleToolbar input[type=search]{height:48px}
+  .articleKpis{grid-template-columns:1fr 1fr;gap:8px}.articleKpi{min-height:104px}
+  .articleGrid{grid-template-columns:1fr}.articleGrid table{min-width:760px}
 }
 
 @media(max-width:420px){
   body.dashboardMode .kpis{grid-template-columns:1fr}
+  .topbar nav{gap:5px}.topbar nav a{font-size:9px;min-height:38px;padding:0 2px}
+  .monthOptions{grid-template-columns:1fr}
+  .finalKpis,.articleKpis{grid-template-columns:1fr}
   .sellerMessage textarea{min-height:170px}
 }
 /* Estado de conexión y actualización en vivo */

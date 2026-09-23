@@ -23,10 +23,16 @@ const daysRange = {
   label: document.getElementById("dayRangeLabel"),
   fill: document.getElementById("rangeFill"),
 };
-const state = { selectedClient: null, selectedSellerZones: new Set(), zoneSearch: "" };
+const state = { selectedClient: null, selectedSellerZones: new Set(), selectedFinalMonths: new Set(), selectedArticleMonths: new Set(), zoneSearch: "", articleSearch: "" };
 
 const fmt = new Intl.NumberFormat("es-VE", { maximumFractionDigits: 0 });
-const money = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = new Intl.NumberFormat("es-VE", {
+  style: "currency",
+  currency: "USD",
+  currencyDisplay: "narrowSymbol",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 const pct = value => `${(value * 100).toFixed(1)}%`;
 const toNumber = value => Number(value ?? 0) || 0;
 const daysWithoutPurchase = row => {
@@ -36,7 +42,6 @@ const daysWithoutPurchase = row => {
 const formatDaysWithoutPurchase = row => row.dias_sin_facturar === "" || row.dias_sin_facturar == null
   ? "-"
   : fmt.format(daysWithoutPurchase(row));
-
 function classifyCustomer(row) {
   const days = daysWithoutPurchase(row);
   if (!row.ultima_factura || row.segmento === "NUNCA FACTURADO") return "NUNCA FACTURADO";
@@ -60,6 +65,9 @@ const zonePickerPanel = document.getElementById("zonePickerPanel");
 const zoneSearchInput = document.getElementById("zoneSearchInput");
 const zoneOptions = document.getElementById("zoneOptions");
 const selectedZoneChips = document.getElementById("selectedZoneChips");
+const finalMonthOptions = document.getElementById("finalMonthOptions");
+const articleMonthOptions = document.getElementById("articleMonthOptions");
+const articleSearchInput = document.getElementById("articleSearchInput");
 
 function showTooltip(event) {
   const target = event.currentTarget;
@@ -244,6 +252,32 @@ document.getElementById("sellerMessages")?.addEventListener("click", event => {
   if (!pdfButton) return;
   downloadSellerPdf(pdfButton.dataset.pdfSeller);
 });
+finalMonthOptions?.addEventListener("change", event => {
+  const input = event.target.closest("[data-final-month]");
+  if (!input) return;
+  if (input.checked) state.selectedFinalMonths.add(input.value);
+  else state.selectedFinalMonths.delete(input.value);
+  renderFinalSummary();
+});
+document.getElementById("finalClearMonths")?.addEventListener("click", () => {
+  state.selectedFinalMonths.clear();
+  renderFinalSummary();
+});
+articleMonthOptions?.addEventListener("change", event => {
+  const input = event.target.closest("[data-article-month]");
+  if (!input) return;
+  if (input.checked) state.selectedArticleMonths.add(input.value);
+  else state.selectedArticleMonths.delete(input.value);
+  renderArticlesSummary();
+});
+articleSearchInput?.addEventListener("input", () => {
+  state.articleSearch = articleSearchInput.value;
+  renderArticlesSummary();
+});
+document.getElementById("articleClearMonths")?.addEventListener("click", () => {
+  state.selectedArticleMonths.clear();
+  renderArticlesSummary();
+});
 window.addEventListener("hashchange", applyViewMode);
 const filtersToggle = document.getElementById("filtersToggle");
 const filterDock = document.querySelector(".filterDock");
@@ -370,6 +404,8 @@ function totals(rows) {
 function render() {
   if (!data || !detail.length) return;
   const sendMode = window.location.hash === "#enviar";
+  const finalMode = window.location.hash === "#resumen-final";
+  const articleMode = window.location.hash === "#articulos";
   document.getElementById("periodText").textContent = `${data.start} a ${data.cutoff}`;
   const rows = currentRows();
   const t = totals(rows);
@@ -391,14 +427,18 @@ function render() {
   // por el corte general de la tabla.
   renderClientTable(filters.seller.value ? sortedClients : sortedClients.slice(0, 500));
   if (sendMode) renderSellerMessages(detail);
+  if (finalMode) renderFinalSummary();
+  if (articleMode) renderArticlesSummary();
   renderDetailPanel(rows);
   bindTooltipTargets();
   applyViewMode(false);
 }
 
 function applyViewMode(renderMessages = true) {
-  const mode = window.location.hash === "#enviar" ? "send" : "dashboard";
+  const mode = window.location.hash === "#enviar" ? "send" : window.location.hash === "#resumen-final" ? "final" : window.location.hash === "#articulos" ? "articles" : "dashboard";
   document.body.classList.toggle("sendMode", mode === "send");
+  document.body.classList.toggle("finalMode", mode === "final");
+  document.body.classList.toggle("articleMode", mode === "articles");
   document.body.classList.toggle("dashboardMode", mode === "dashboard");
   document.querySelectorAll("[data-view-link]").forEach(link => {
     link.classList.toggle("active", link.dataset.viewLink === mode);
@@ -406,6 +446,8 @@ function applyViewMode(renderMessages = true) {
   // La vista de mensajes es pesada porque prepara una lista para cada vendedor.
   // Se crea solo cuando el usuario abre esa vista, no al cargar el dashboard.
   if (mode === "send" && renderMessages && data && detail.length) renderSellerMessages(detail);
+  if (mode === "final" && renderMessages && data && detail.length) renderFinalSummary();
+  if (mode === "articles" && renderMessages && data && detail.length) renderArticlesSummary();
 }
 
 function renderKpis(t) {
@@ -677,6 +719,364 @@ function monthName(monthKey) {
   return monthNames[monthNumber - 1] || monthKey;
 }
 
+function monthFullName(monthKey) {
+  const year = String(monthKey).split("-")[0] || "";
+  return `${monthName(monthKey)} ${year}`.trim();
+}
+
+function availableMonths() {
+  const months = new Set((data?.months || []).map(item => item.mes).filter(Boolean));
+  detail.forEach(row => {
+    (row.historial_mensual || []).forEach(item => {
+      if (item.mes) months.add(item.mes);
+    });
+  });
+  return [...months].sort();
+}
+
+function selectedFinalMonths() {
+  const selected = [...state.selectedFinalMonths].filter(month => availableMonths().includes(month)).sort();
+  return selected.length ? selected : availableMonths();
+}
+
+function hasClientMonthlyHistory() {
+  return detail.some(row => Array.isArray(row.historial_mensual) && row.historial_mensual.length);
+}
+
+function monthlyTotalsFor(months) {
+  const monthSet = new Set(months);
+  const monthlyRows = (data?.months || []).filter(item => monthSet.has(item.mes));
+  return {
+    sales: monthlyRows.reduce((sum, item) => sum + toNumber(item.venta_total), 0),
+    clients: monthlyRows.reduce((sum, item) => sum + toNumber(item.clientes_unicos), 0),
+    documents: monthlyRows.reduce((sum, item) => sum + toNumber(item.documentos), 0),
+    activeZones: 0
+  };
+}
+
+function monthEntries(row, months) {
+  const history = Array.isArray(row.historial_mensual) ? row.historial_mensual : [];
+  if (history.length) {
+    return history.filter(item => months.includes(item.mes) && toNumber(item.venta_total) > 0);
+  }
+  return [];
+}
+
+function finalPeriodRows() {
+  const months = selectedFinalMonths();
+  return detail.map(row => {
+    const entries = monthEntries(row, months);
+    const sale = entries.reduce((sum, item) => sum + toNumber(item.venta_total), 0);
+    const documents = entries.reduce((sum, item) => sum + toNumber(item.documentos), 0);
+    const lastDate = entries.map(item => item.ultima_factura).filter(Boolean).sort().pop() || "";
+    const firstMonth = entries.map(item => item.mes).filter(Boolean).sort()[0] || "";
+    return {
+      ...row,
+      periodo_venta_total: sale,
+      periodo_documentos: documents,
+      periodo_ultima_factura: lastDate,
+      periodo_primer_mes: firstMonth,
+      periodo_meses: entries.length
+    };
+  }).filter(row => row.periodo_venta_total > 0);
+}
+
+function aggregateFinal(rows, key) {
+  const map = new Map();
+  rows.forEach(row => {
+    const name = normalizeLabel(row[key]);
+    if (!map.has(name)) map.set(name, { name, clientes: 0, documentos: 0, venta: 0, promedio: 0 });
+    const item = map.get(name);
+    item.clientes += 1;
+    item.documentos += toNumber(row.periodo_documentos);
+    item.venta += toNumber(row.periodo_venta_total);
+  });
+  return [...map.values()].map(item => ({
+    ...item,
+    promedio: item.clientes ? item.venta / item.clientes : 0
+  })).sort((a, b) => b.venta - a.venta || b.clientes - a.clientes || a.name.localeCompare(b.name));
+}
+
+function renderFinalMonthOptions(months) {
+  if (!finalMonthOptions) return;
+  finalMonthOptions.innerHTML = months.map(month => `
+    <label class="monthOption">
+      <input type="checkbox" value="${escapeHtml(month)}" data-final-month ${state.selectedFinalMonths.has(month) ? "checked" : ""}>
+      <span>${escapeHtml(monthFullName(month))}</span>
+    </label>
+  `).join("");
+}
+
+function renderFinalSummary() {
+  if (!data || !detail.length) return;
+  const months = availableMonths();
+  renderFinalMonthOptions(months);
+  const selected = selectedFinalMonths();
+  const preciseClientHistory = hasClientMonthlyHistory();
+  const rows = finalPeriodRows();
+  const totalClients = detail.length || 1;
+  const monthTotals = monthlyTotalsFor(selected);
+  const clientsWithSale = preciseClientHistory ? rows.length : monthTotals.clients;
+  const clientsWithoutSale = Math.max(0, totalClients - clientsWithSale);
+  const totalSales = preciseClientHistory ? rows.reduce((sum, row) => sum + toNumber(row.periodo_venta_total), 0) : monthTotals.sales;
+  const totalDocs = preciseClientHistory ? rows.reduce((sum, row) => sum + toNumber(row.periodo_documentos), 0) : monthTotals.documents;
+  const avgTicket = totalDocs ? totalSales / totalDocs : 0;
+  const avgClient = clientsWithSale ? totalSales / clientsWithSale : 0;
+  const selectedLabel = state.selectedFinalMonths.size
+    ? selected.map(monthFullName).join(", ")
+    : "Todo el periodo";
+  const summary = document.getElementById("finalSummary");
+  if (summary) summary.textContent = `Resumen final: ${selectedLabel}`;
+
+  document.getElementById("finalKpis").innerHTML = [
+    ["Meses revisados", fmt.format(selected.length), selectedLabel],
+    ["Clientes con compra", fmt.format(clientsWithSale), `${pct(clientsWithSale / totalClients)} de la cartera`],
+    ["Clientes sin venta", fmt.format(clientsWithoutSale), "No aparecen facturados en el rango"],
+    ["Venta total", money.format(totalSales), "Facturación del periodo"],
+    ["Facturas válidas", fmt.format(totalDocs), "Documentos agregados"],
+    ["Ticket promedio", money.format(avgTicket), "Promedio por factura"],
+    ["Promedio por cliente", money.format(avgClient), "Venta promedio por cliente facturado"],
+    ["Zonas activas", preciseClientHistory ? fmt.format(aggregateFinal(rows, "zona").length) : "-", preciseClientHistory ? "Zonas con movimiento" : "Disponible al actualizar el puente de datos"]
+  ].map(([label, value, sub]) => `<article class="kpi finalKpi"><span>${label}</span><strong>${value}</strong><small>${escapeHtml(sub)}</small></article>`).join("");
+
+  const topSeller = aggregateFinal(rows, "vendedor")[0];
+  const topZone = aggregateFinal(rows, "zona")[0];
+  const topClient = rows.slice().sort((a, b) => b.periodo_venta_total - a.periodo_venta_total)[0];
+  document.getElementById("finalInsight").innerHTML = `
+    <article>
+      <span>Lectura rápida</span>
+      <strong>${preciseClientHistory ? `${escapeHtml(topSeller?.name || "Sin vendedor destacado")} lidera el periodo con ${topSeller ? money.format(topSeller.venta) : money.format(0)}.` : `El periodo seleccionado suma ${money.format(totalSales)} en facturación registrada.`}</strong>
+      <p>${preciseClientHistory ? `La zona con mayor movimiento fue ${escapeHtml(topZone?.name || "sin zona")} y el cliente de mayor facturación fue ${escapeHtml(shorten(topClient?.cliente || "sin cliente destacado", 70))}.` : "Para ver el desglose exacto por vendedor, zona y cliente dentro de cada mes, publique la versión actualizada del Apps Script. El total mensual ya se muestra desde el resumen mensual disponible."} Esta vista sirve para cerrar el mes, comparar rangos y detectar dónde se concentró realmente la venta.</p>
+    </article>`;
+
+  renderFinalMonthBars(rows, selected);
+  renderFinalRankTable("finalSellerTable", preciseClientHistory ? aggregateFinal(rows, "vendedor").slice(0, 20) : [], "Vendedor", preciseClientHistory ? "" : "Actualice el Apps Script para ver vendedores por mes.");
+  renderFinalRankTable("finalZoneTable", preciseClientHistory ? aggregateFinal(rows, "zona").slice(0, 20) : [], "Zona", preciseClientHistory ? "" : "Actualice el Apps Script para ver zonas por mes.");
+  renderFinalClientTable(preciseClientHistory ? rows : [], preciseClientHistory ? "" : "Actualice el Apps Script para ver clientes por mes.");
+  bindTooltipTargets();
+}
+
+function renderFinalMonthBars(rows, months) {
+  if (!hasClientMonthlyHistory()) {
+    const values = (data?.months || [])
+      .filter(item => months.includes(item.mes))
+      .sort((a, b) => a.mes.localeCompare(b.mes))
+      .map(item => ({ name: monthFullName(item.mes), clientes: toNumber(item.clientes_unicos), venta: toNumber(item.venta_total), documentos: toNumber(item.documentos), activos: toNumber(item.clientes_unicos), inactivos: 0 }));
+    renderBars("finalMonthBars", values, false, item => `${fmt.format(item.clientes)} clientes · ${money.format(item.venta || 0)}`);
+    return;
+  }
+  const map = new Map(months.map(month => [month, { name: month, clientes: 0, venta: 0, documentos: 0 }]));
+  rows.forEach(row => {
+    monthEntries(row, months).forEach(item => {
+      if (!map.has(item.mes)) map.set(item.mes, { name: item.mes, clientes: 0, venta: 0, documentos: 0 });
+      const month = map.get(item.mes);
+      month.clientes += 1;
+      month.venta += toNumber(item.venta_total);
+      month.documentos += toNumber(item.documentos);
+    });
+  });
+  const values = [...map.values()].filter(item => item.clientes || item.venta).sort((a, b) => a.name.localeCompare(b.name));
+  renderBars("finalMonthBars", values.map(item => ({
+    ...item,
+    name: monthFullName(item.name),
+    clientes: item.clientes,
+    activos: item.clientes,
+    inactivos: 0
+  })), false, item => `${fmt.format(item.clientes)} clientes · ${money.format(item.venta || 0)}`);
+}
+
+function renderFinalRankTable(id, rows, label, emptyMessage = "No hay registros para este periodo.") {
+  const element = document.getElementById(id);
+  if (!element) return;
+  element.innerHTML = `
+    <thead><tr><th>${label}</th><th class="num">Clientes</th><th class="num">Facturas</th><th class="num">Venta</th><th class="num">Promedio cliente</th></tr></thead>
+    <tbody>${rows.map(row => `
+      <tr>
+        <td>${escapeHtml(row.name)}</td>
+        <td class="num">${fmt.format(row.clientes)}</td>
+        <td class="num">${fmt.format(row.documentos)}</td>
+        <td class="num">${money.format(row.venta)}</td>
+        <td class="num">${money.format(row.promedio)}</td>
+      </tr>`).join("") || `<tr><td colspan="5">${escapeHtml(emptyMessage)}</td></tr>`}</tbody>`;
+}
+
+function renderFinalClientTable(rows, emptyMessage = "No hay clientes facturados en este rango.") {
+  const element = document.getElementById("finalClientTable");
+  if (!element) return;
+  const sorted = rows.slice().sort((a, b) => b.periodo_venta_total - a.periodo_venta_total).slice(0, 600);
+  element.innerHTML = `
+    <thead><tr><th>Cliente</th><th>Vendedor</th><th>Zona</th><th class="num">Venta periodo</th><th class="num">Facturas</th><th>Última compra del rango</th><th class="num">Promedio factura</th></tr></thead>
+    <tbody>${sorted.map(row => `
+      <tr>
+        <td>${escapeHtml(shorten(row.cliente, 52))}</td>
+        <td>${escapeHtml(normalizeLabel(row.vendedor))}</td>
+        <td>${escapeHtml(normalizeLabel(row.zona))}</td>
+        <td class="num">${money.format(row.periodo_venta_total)}</td>
+        <td class="num">${fmt.format(row.periodo_documentos)}</td>
+        <td>${escapeHtml(row.periodo_ultima_factura || "-")}</td>
+        <td class="num">${money.format(row.periodo_documentos ? row.periodo_venta_total / row.periodo_documentos : 0)}</td>
+      </tr>`).join("") || `<tr><td colspan="7">${escapeHtml(emptyMessage)}</td></tr>`}</tbody>`;
+}
+
+function articlesData() {
+  return Array.isArray(data?.articulos) ? data.articulos : [];
+}
+
+function articleAvailableMonths() {
+  const months = new Set();
+  articlesData().forEach(article => {
+    (article.historial_mensual || []).forEach(item => {
+      if (item.mes) months.add(item.mes);
+    });
+  });
+  if (!months.size) (data?.months || []).forEach(item => item.mes && months.add(item.mes));
+  return [...months].sort();
+}
+
+function selectedArticleMonths() {
+  const months = articleAvailableMonths();
+  const selected = [...state.selectedArticleMonths].filter(month => months.includes(month)).sort();
+  return selected.length ? selected : months;
+}
+
+function articleMonthStats(article, months) {
+  const history = Array.isArray(article.historial_mensual) ? article.historial_mensual : [];
+  if (!history.length) {
+    return {
+      venta_total: toNumber(article.venta_total),
+      unidades: toNumber(article.unidades || article.total_articulo),
+      peso_total: toNumber(article.peso_total),
+      documentos: toNumber(article.documentos),
+      clientes_unicos: toNumber(article.clientes_unicos)
+    };
+  }
+  const set = new Set(months);
+  const selected = history.filter(item => set.has(item.mes));
+  return {
+    venta_total: selected.reduce((sum, item) => sum + toNumber(item.venta_total), 0),
+    unidades: selected.reduce((sum, item) => sum + toNumber(item.unidades), 0),
+    peso_total: selected.reduce((sum, item) => sum + toNumber(item.peso_total), 0),
+    documentos: selected.reduce((sum, item) => sum + toNumber(item.documentos), 0),
+    clientes_unicos: selected.reduce((sum, item) => sum + toNumber(item.clientes_unicos), 0)
+  };
+}
+
+function currentArticles() {
+  const months = selectedArticleMonths();
+  const query = searchKey(state.articleSearch || "");
+  return articlesData().map(article => {
+    const stats = articleMonthStats(article, months);
+    return {
+      ...article,
+      periodo_venta_total: stats.venta_total,
+      periodo_unidades: stats.unidades,
+      periodo_peso_total: stats.peso_total,
+      periodo_documentos: stats.documentos,
+      periodo_clientes: stats.clientes_unicos,
+      periodo_venta_por_peso: stats.peso_total ? stats.venta_total / stats.peso_total : 0,
+      periodo_precio_promedio: stats.unidades ? stats.venta_total / stats.unidades : 0
+    };
+  }).filter(article => {
+    if (article.periodo_venta_total <= 0 && article.periodo_unidades <= 0 && article.periodo_peso_total <= 0) return false;
+    if (!query) return true;
+    return searchKey(`${article.codigo} ${article.producto} ${article.unidad}`).includes(query);
+  });
+}
+
+function formatWeight(value) {
+  const amount = toNumber(value);
+  return `${new Intl.NumberFormat("es-VE", { maximumFractionDigits: 2 }).format(amount)} peso`;
+}
+
+function renderArticleMonthOptions(months) {
+  if (!articleMonthOptions) return;
+  articleMonthOptions.innerHTML = months.map(month => `
+    <label class="monthOption">
+      <input type="checkbox" value="${escapeHtml(month)}" data-article-month ${state.selectedArticleMonths.has(month) ? "checked" : ""}>
+      <span>${escapeHtml(monthFullName(month))}</span>
+    </label>
+  `).join("");
+}
+
+function renderArticlesSummary() {
+  const articles = articlesData();
+  const emptyState = document.getElementById("articleEmptyState");
+  const contentIds = ["articleKpis", "articleWeightBars", "articleSalesBars", "articleUnitBars", "articleWeightValueBars", "articleTable"];
+  const months = articleAvailableMonths();
+  renderArticleMonthOptions(months);
+  if (!articles.length) {
+    if (emptyState) emptyState.innerHTML = `<div class="feedbackCard warning"><div><span class="panelTag">Datos de artículos</span><h2>Falta publicar el Apps Script actualizado</h2><p>La vista ya está lista, pero necesita que el puente envíe la información de productos, unidades, venta y peso desde FACTURACION.</p></div><strong>Sin artículos</strong></div>`;
+    contentIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = "";
+    });
+    return;
+  }
+  if (emptyState) emptyState.innerHTML = "";
+  const rows = currentArticles();
+  const totalSales = rows.reduce((sum, row) => sum + toNumber(row.periodo_venta_total), 0);
+  const totalUnits = rows.reduce((sum, row) => sum + toNumber(row.periodo_unidades), 0);
+  const totalWeight = rows.reduce((sum, row) => sum + toNumber(row.periodo_peso_total), 0);
+  const totalDocs = rows.reduce((sum, row) => sum + toNumber(row.periodo_documentos), 0);
+  const totalClients = rows.reduce((sum, row) => sum + toNumber(row.periodo_clientes), 0);
+  const selectedLabel = state.selectedArticleMonths.size ? selectedArticleMonths().map(monthFullName).join(", ") : "Todo el periodo";
+  const summary = document.getElementById("articleSummary");
+  if (summary) summary.textContent = `Artículos analizados: ${fmt.format(rows.length)} · ${selectedLabel}`;
+
+  document.getElementById("articleKpis").innerHTML = [
+    ["Artículos con movimiento", fmt.format(rows.length), "Productos vendidos en el rango"],
+    ["Venta total", money.format(totalSales), "Facturación de artículos"],
+    ["Unidades", fmt.format(totalUnits), "Cantidad total registrada"],
+    ["Peso total", formatWeight(totalWeight), "Peso acumulado"],
+    ["Venta por peso", totalWeight ? money.format(totalSales / totalWeight) : "-", "Ingreso por unidad de peso"],
+    ["Facturas", fmt.format(totalDocs), "Documentos donde aparecen productos"],
+    ["Clientes compradores", fmt.format(totalClients), "Clientes acumulados por artículo"],
+    ["Precio promedio", totalUnits ? money.format(totalSales / totalUnits) : "-", "Venta por unidad"]
+  ].map(([label, value, sub]) => `<article class="kpi articleKpi"><span>${label}</span><strong>${value}</strong><small>${escapeHtml(sub)}</small></article>`).join("");
+
+  renderArticleBars("articleWeightBars", rows.slice().sort((a, b) => b.periodo_peso_total - a.periodo_peso_total).slice(0, 12), "periodo_peso_total", row => formatWeight(row.periodo_peso_total));
+  renderArticleBars("articleSalesBars", rows.slice().sort((a, b) => b.periodo_venta_total - a.periodo_venta_total).slice(0, 12), "periodo_venta_total", row => money.format(row.periodo_venta_total));
+  renderArticleBars("articleUnitBars", rows.slice().sort((a, b) => b.periodo_unidades - a.periodo_unidades).slice(0, 12), "periodo_unidades", row => `${fmt.format(row.periodo_unidades)} unidades`);
+  renderArticleBars("articleWeightValueBars", rows.slice().filter(row => row.periodo_venta_por_peso > 0).sort((a, b) => b.periodo_venta_por_peso - a.periodo_venta_por_peso).slice(0, 12), "periodo_venta_por_peso", row => `${money.format(row.periodo_venta_por_peso)} por peso`);
+  renderArticleTable(rows);
+  bindTooltipTargets();
+}
+
+function renderArticleBars(id, rows, valueKey, valueFormatter) {
+  const max = Math.max(1, ...rows.map(row => toNumber(row[valueKey])));
+  const element = document.getElementById(id);
+  if (!element) return;
+  element.innerHTML = rows.map(row => {
+    const value = toNumber(row[valueKey]);
+    return `
+      <div class="barRow" tabindex="0" data-tooltip="${escapeHtml(row.producto)}">
+        <strong title="${escapeHtml(row.producto)}">${escapeHtml(shorten(row.producto, 28))}</strong>
+        <div class="track"><span class="singleBar" style="width:${Math.max((value / max) * 100, value ? 3 : 0)}%"></span></div>
+        <span class="barValue">${valueFormatter(row)}</span>
+      </div>`;
+  }).join("") || `<p class="panelIntro">No hay datos para mostrar.</p>`;
+}
+
+function renderArticleTable(rows) {
+  const element = document.getElementById("articleTable");
+  if (!element) return;
+  const sorted = rows.slice().sort((a, b) => b.periodo_venta_total - a.periodo_venta_total).slice(0, 800);
+  element.innerHTML = `
+    <thead><tr><th>Artículo</th><th>Código</th><th>Unidad</th><th class="num">Venta</th><th class="num">Unidades</th><th class="num">Peso</th><th class="num">Venta por peso</th><th class="num">Clientes</th><th class="num">Facturas</th></tr></thead>
+    <tbody>${sorted.map(row => `
+      <tr>
+        <td>${escapeHtml(shorten(row.producto, 58))}</td>
+        <td>${escapeHtml(row.codigo || "-")}</td>
+        <td>${escapeHtml(row.unidad || "-")}</td>
+        <td class="num">${money.format(row.periodo_venta_total)}</td>
+        <td class="num">${fmt.format(row.periodo_unidades)}</td>
+        <td class="num">${formatWeight(row.periodo_peso_total)}</td>
+        <td class="num">${row.periodo_peso_total ? money.format(row.periodo_venta_por_peso) : "-"}</td>
+        <td class="num">${fmt.format(row.periodo_clientes)}</td>
+        <td class="num">${fmt.format(row.periodo_documentos)}</td>
+      </tr>`).join("") || `<tr><td colspan="9">No hay artículos para este filtro.</td></tr>`}</tbody>`;
+}
+
 function renderTable(id, rows) {
   const total = rows.reduce((s, r) => s + r.clientes, 0) || 1;
   document.getElementById(id).innerHTML = `
@@ -792,8 +1192,7 @@ function buildSellerMessage(group) {
     `Clientes activos en el mes: ${fmt.format(activeThisMonth)}.`,
     `Clientes pendientes por activar: ${fmt.format(pendingCount)}.`,
     `Oportunidad de próxima venta en total: ${money.format(recoveryPotential)}.`,
-    "Referencia: suma del promedio por factura de cada cliente pendiente con historial.",
-    "No representa una venta garantizada.",
+    "Referencia comercial: promedio habitual de compra de los clientes pendientes con historial.",
     "",
     "Top 10 oportunidades por promedio de compra:",
     ...topLines,
@@ -820,9 +1219,16 @@ function maximumPurchaseText(row) {
   return money.format(toNumber(row.monto_maximo_factura));
 }
 
+function purchaseDateText(row) {
+  const value = String(row?.ultima_factura || "").trim();
+  if (!value) return "Sin compra registrada";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
 function sellerPurchaseMetrics(row) {
-  if (!toNumber(row?.documentos)) return "sin historial de facturación";
-  return `promedio por factura ${money.format(toNumber(row.promedio_compra))} | mayor compra ${maximumPurchaseText(row)} | ${fmt.format(toNumber(row.documentos))} facturas válidas`;
+  if (!toNumber(row?.documentos)) return "última compra: sin compra registrada | sin historial de facturación";
+  return `última compra ${purchaseDateText(row)} | promedio por factura ${money.format(toNumber(row.promedio_compra))} | mayor compra ${maximumPurchaseText(row)} | ${fmt.format(toNumber(row.documentos))} facturas válidas`;
 }
 
 function uniqueCustomerRows(rows) {
@@ -984,18 +1390,18 @@ function sellerPdfHtml(group) {
   const customersWithHistory = pendingRows.filter(row => toNumber(row.documentos) > 0);
   const averagePotential = customersWithHistory.length ? recoveryPotential / customersWithHistory.length : 0;
   const topCustomers = topInactiveCustomers(pendingRows);
-  const maxAverage = Math.max(...topCustomers.map(row => toNumber(row.promedio_compra)), 1);
   const zoneLabel = selectedZones.length ? selectedZones.join(", ") : "Todas las zonas";
   const generatedAt = new Date().toLocaleString("es-VE");
-  const quality = data?.data_quality || {};
-  const duplicateNote = Number.isFinite(Number(quality.filas_duplicadas_omitidas))
-    ? `${fmt.format(toNumber(quality.filas_duplicadas_omitidas))} filas exactamente duplicadas fueron omitidas antes de calcular los promedios.`
-    : "Los promedios se calculan agrupando las líneas válidas por factura.";
   const topCards = topCustomers.map((row, index) => {
-    const width = Math.max(5, Math.round((toNumber(row.promedio_compra) / maxAverage) * 100));
-    return `<article class="topCard"><div class="topRank">${index + 1}</div><div class="topMain"><strong>${escapeHtml(row.cliente)}</strong><span>${escapeHtml(normalizeLabel(row.zona) || "Sin zona")} · ${escapeHtml(formatDaysWithoutPurchase(row))}</span><div class="bar"><i style="width:${width}%"></i></div></div><div class="topValue"><b>${money.format(toNumber(row.promedio_compra))}</b><span>promedio / factura</span><small>Mayor ${escapeHtml(maximumPurchaseText(row))} · ${fmt.format(toNumber(row.documentos))} facturas</small></div></article>`;
+    return `<article class="topCard"><div class="topRank">${index + 1}</div><div class="clientFacts"><p>Nombre del cliente: <strong>${escapeHtml(row.cliente)}</strong></p><p>Zona: <strong>${escapeHtml(normalizeLabel(row.zona) || "Sin zona")}</strong></p><p>Última compra: <strong>${escapeHtml(purchaseDateText(row))}</strong></p><p>Días sin comprar: <strong>${row.dias_sin_facturar === "" || row.dias_sin_facturar == null ? "Sin compra registrada" : fmt.format(daysWithoutPurchase(row))}</strong></p><p>Promedio por factura: <strong>${money.format(toNumber(row.promedio_compra))}</strong></p><p>Compra máxima: <strong>${escapeHtml(maximumPurchaseText(row))}</strong></p></div></article>`;
   }).join("") || `<p class="emptyState">No hay clientes con historial de facturación dentro de los filtros elegidos.</p>`;
-  const clientCards = pendingRows.map((row, index) => `<article class="clientCard"><div class="clientCardHead"><span>${String(index + 1).padStart(2, "0")}</span><div><h3>${escapeHtml(row.cliente)}</h3><p>${escapeHtml(normalizeLabel(row.zona) || "Sin zona")} · ${escapeHtml(simpleSegment(row.segmento))}</p></div></div><div class="clientMetrics"><div><label>Última compra</label><strong>${escapeHtml(row.ultima_factura || "Sin factura")}</strong></div><div><label>Días sin comprar</label><strong>${escapeHtml(formatDaysWithoutPurchase(row))}</strong></div><div><label>Promedio por factura</label><strong>${row.documentos ? money.format(toNumber(row.promedio_compra)) : "Sin historial"}</strong></div><div><label>Mayor compra registrada</label><strong>${escapeHtml(maximumPurchaseText(row))}</strong></div><div><label>Facturas válidas</label><strong>${fmt.format(toNumber(row.documentos))}</strong></div><div><label>Duplicados omitidos</label><strong>${fmt.format(toNumber(row.lineas_duplicadas_omitidas))}</strong></div></div></article>`).join("");
+  const directoryRows = [...pendingRows].sort((a, b) => normalizeLabel(a.zona).localeCompare(normalizeLabel(b.zona)) || daysWithoutPurchase(b) - daysWithoutPurchase(a) || a.cliente.localeCompare(b.cliente));
+  const clientCards = directoryRows.map((row, index) => {
+    const days = daysWithoutPurchase(row);
+    const urgency = !row.ultima_factura ? "neutral" : days <= 60 ? "green" : days <= 90 ? "yellow" : days <= 180 ? "orange" : "red";
+    const average = toNumber(row.documentos) ? money.format(toNumber(row.promedio_compra)) : "Sin historial";
+    return `<article class="directoryItem ${urgency}"><i></i><span class="directoryNumber">${index + 1}</span><div class="clientFacts"><p>Nombre del cliente: <strong>${escapeHtml(row.cliente)}</strong></p><p>Zona: <strong>${escapeHtml(normalizeLabel(row.zona) || "Sin zona")}</strong></p><p>Última compra: <strong>${escapeHtml(purchaseDateText(row))}</strong></p><p>Días sin comprar: <strong>${row.dias_sin_facturar === "" || row.dias_sin_facturar == null ? "Sin compra registrada" : fmt.format(daysWithoutPurchase(row))}</strong></p><p>Promedio por factura: <strong>${average}</strong></p><p>Compra máxima: <strong>${escapeHtml(maximumPurchaseText(row))}</strong></p></div></article>`;
+  }).join("");
 
   return `<!doctype html>
   <html lang="es">
@@ -1003,13 +1409,43 @@ function sellerPdfHtml(group) {
     <meta charset="utf-8">
     <title>Plan de reactivación · ${escapeHtml(group.seller)}</title>
     <style>
-      *{box-sizing:border-box}body{margin:0;padding:24px;color:#10231c;font-family:Arial,Helvetica,sans-serif;background:#edf2ed}.page{max-width:1120px;margin:0 auto 24px;background:#fff;border:1px solid #dfe7e2;border-radius:24px;overflow:hidden}.hero{padding:36px 38px;background:radial-gradient(circle at 84% 15%,#315f42 0,transparent 27%),linear-gradient(135deg,#061a13,#0c4230);color:#fff}.eyebrow{margin:0 0 10px;color:#b7f45d;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.hero h1{margin:0;font-size:36px;line-height:1.03;letter-spacing:-.045em}.hero p{max-width:680px;margin:12px 0 0;color:#c9d8d2;font-size:15px;line-height:1.45}.meta{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:18px 28px;background:#f8faf7;border-bottom:1px solid #dfe7e2}.card{min-height:85px;padding:14px;border:1px solid #dfe7e2;border-radius:15px;background:#fff}.card.potential{border-color:#9ddc63;background:#f2ffe5}.card span{display:block;color:#66766f;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.card strong{display:block;margin-top:7px;font-size:18px;letter-spacing:-.035em}.content{padding:28px}.note{margin:0 0 24px;padding:15px 17px;border-left:4px solid #9cdf45;border-radius:12px;background:#f2f8ed;color:#184130;font-size:13px;line-height:1.5}.sectionTag{margin:0;color:#16965d;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.sectionTitle{margin:5px 0 5px;font-size:23px;letter-spacing:-.04em}.sectionSub{margin:0 0 16px;color:#66766f;font-size:12px}.topGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.topCard{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e0e8e2;border-radius:14px;background:#fbfdf9;break-inside:avoid}.topRank{display:grid;place-items:center;flex:0 0 27px;height:27px;border-radius:9px;background:#0d3a2b;color:#b7f45d;font-weight:800;font-size:12px}.topMain{min-width:0;flex:1}.topMain strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.topMain span{display:block;margin-top:3px;color:#66766f;font-size:10px}.bar{height:5px;margin-top:8px;overflow:hidden;border-radius:999px;background:#e5eee6}.bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#2abd72,#9cdf45)}.topValue{text-align:right;white-space:nowrap}.topValue b{display:block;font-size:12px}.topValue span,.topValue small{display:block;color:#66766f;font-size:9px}.topValue small{margin-top:3px}.detailBreak{page-break-before:always}.detailHeader{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:18px}.detailHeader h2{margin:5px 0 0;font-size:25px;letter-spacing:-.04em}.detailHeader p{margin:0;color:#66766f;font-size:11px;text-align:right}.clientGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.clientCard{padding:14px;border:1px solid #dfe7e2;border-radius:15px;background:#fff;break-inside:avoid;page-break-inside:avoid}.clientCardHead{display:flex;gap:10px;align-items:flex-start}.clientCardHead>span{display:grid;place-items:center;flex:0 0 27px;height:27px;border-radius:9px;background:#eef7f1;color:#12714b;font-size:10px;font-weight:800}.clientCard h3{margin:0;font-size:12px;line-height:1.25}.clientCard p{margin:3px 0 0;color:#66766f;font-size:10px}.clientMetrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:13px;padding-top:11px;border-top:1px solid #eaf0eb}.clientMetrics label{display:block;color:#718078;font-size:8px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.clientMetrics strong{display:block;margin-top:3px;font-size:11px;line-height:1.25}.emptyState{color:#66766f;font-size:13px}.footer{padding:15px 28px;color:#66766f;font-size:10px;border-top:1px solid #dfe7e2}@media(max-width:720px){body{padding:0}.page{border-radius:0}.meta,.topGrid,.clientGrid{grid-template-columns:1fr}.hero,.content{padding:24px}.meta{padding:16px}.detailHeader{display:block}.detailHeader p{text-align:left;margin-top:6px}}@media print{body{padding:0;background:#fff}.page{border:0;border-radius:0;box-shadow:none;max-width:none}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}.meta,.card,.topCard,.clientCard,.note{-webkit-print-color-adjust:exact;print-color-adjust:exact}.detailBreak{page-break-before:always}button{display:none}}
+      *{box-sizing:border-box}body{margin:0;padding:24px;color:#10231c;font-family:Arial,Helvetica,sans-serif;background:#edf2ed}.page{max-width:1120px;margin:0 auto 24px;background:#fff;border:1px solid #dfe7e2;border-radius:24px;overflow:hidden}.hero{padding:28px 34px;background:radial-gradient(circle at 84% 15%,#315f42 0,transparent 27%),linear-gradient(135deg,#061a13,#0c4230);color:#fff}.eyebrow{margin:0 0 8px;color:#b7f45d;font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.hero h1{margin:0;font-size:32px;line-height:1.03;letter-spacing:-.045em}.hero p{max-width:720px;margin:9px 0 0;color:#c9d8d2;font-size:13px;line-height:1.4}.meta{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:13px 24px;background:#f8faf7;border-bottom:1px solid #dfe7e2}.card{min-height:66px;padding:11px;border:1px solid #dfe7e2;border-radius:12px;background:#fff}.card.potential{border-color:#9ddc63;background:#f2ffe5}.card span{display:block;color:#66766f;font-size:8px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.card strong{display:block;margin-top:5px;font-size:16px;letter-spacing:-.035em}.content{padding:20px 24px}.note{margin:0 0 15px;padding:10px 13px;border-left:3px solid #9cdf45;border-radius:10px;background:#f2f8ed;color:#184130;font-size:10px;line-height:1.38}.sectionTag{margin:0;color:#16965d;font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.sectionTitle{margin:4px 0;font-size:20px;letter-spacing:-.04em}.sectionSub{margin:0 0 10px;color:#66766f;font-size:10px}.topGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 9px}.topCard{display:flex;align-items:center;gap:8px;min-height:43px;padding:8px 9px;border:1px solid #e0e8e2;border-radius:10px;background:#fbfdf9;break-inside:avoid}.topRank{display:grid;place-items:center;flex:0 0 23px;height:23px;border-radius:7px;background:#0d3a2b;color:#b7f45d;font-weight:800;font-size:10px}.topMain{min-width:0;flex:1}.topMain strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}.topMain span{display:block;margin-top:2px;color:#66766f;font-size:8px}.bar{height:3px;margin-top:5px;overflow:hidden;border-radius:999px;background:#e5eee6}.bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#2abd72,#9cdf45)}.topValue{text-align:right;white-space:nowrap}.topValue b{display:block;font-size:10px}.topValue span,.topValue small{display:block;color:#66766f;font-size:7px}.topValue small{margin-top:2px}.detailBreak{page-break-before:always}.detailHeader{display:flex;justify-content:space-between;gap:12px;align-items:end;margin-bottom:5px}.detailHeader h2{margin:2px 0 0;font-size:17px;letter-spacing:-.035em}.detailHeader p{margin:0;color:#66766f;font-size:7px;text-align:right}.directoryLegend{display:flex;gap:9px;align-items:center;margin:0 0 4px;padding:4px 7px;border-radius:5px;background:#f7f9f6;color:#66766f;font-size:6.5px}.directoryLegend span{display:flex;gap:3px;align-items:center}.directoryLegend i{width:5px;height:5px;border-radius:50%}.directoryLegend .g{background:#22a96b}.directoryLegend .y{background:#d3a218}.directoryLegend .o{background:#ea7b24}.directoryLegend .r{background:#d9473f}.directoryLegend .n{background:#8b9891}.directoryGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:8px;row-gap:0}.directoryItem{position:relative;display:grid;grid-template-columns:2px 15px minmax(0,1fr) auto;gap:4px;align-items:center;min-height:27px;padding:3px 2px;border:0;border-bottom:1px solid #e6ece8;border-radius:0;background:#fff;break-inside:avoid;page-break-inside:avoid}.directoryItem:nth-child(8n+1),.directoryItem:nth-child(8n+2),.directoryItem:nth-child(8n+3),.directoryItem:nth-child(8n+4){background:#fafcf9}.directoryItem>i{align-self:stretch;border-radius:99px;background:#8b9891}.directoryItem.green>i{background:#22a96b}.directoryItem.yellow>i{background:#d3a218}.directoryItem.orange>i{background:#ea7b24}.directoryItem.red>i{background:#d9473f}.directoryNumber{color:#728078;font-size:6px;text-align:center}.directoryMain{min-width:0}.directoryMain strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:7.2px;line-height:1.12}.directoryMain small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;color:#66766f;font-size:6.1px;line-height:1.1}.directoryValue{text-align:right;white-space:nowrap}.directoryValue b{display:block;font-size:7px}.directoryValue small{display:block;color:#718078;font-size:5.3px}.emptyState{color:#66766f;font-size:11px}.footer{padding:5px 24px;color:#66766f;font-size:6.5px;border-top:1px solid #dfe7e2}@page{size:A4 landscape;margin:5mm}@media(max-width:720px){body{padding:0}.page{border-radius:0}.meta,.topGrid,.directoryGrid{grid-template-columns:1fr}.hero,.content{padding:20px}.meta{padding:14px}.detailHeader{display:block}.detailHeader p{text-align:left;margin-top:5px}}@media print{body{padding:0;background:#fff}.page{border:0;border-radius:0;box-shadow:none;max-width:none;margin:0;overflow:visible}.coverPage{page-break-after:always}.directoryPage .content{padding:8px 10px}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}.meta,.card,.topCard,.directoryItem,.note,.directoryLegend{-webkit-print-color-adjust:exact;print-color-adjust:exact}.detailBreak{page-break-before:always}.directoryGrid{grid-template-columns:repeat(4,minmax(0,1fr))}button{display:none}}
+      /* Directorio legible: equilibrio entre cantidad de páginas y lectura rápida. */
+      .directoryGrid{grid-template-columns:repeat(3,minmax(0,1fr));column-gap:11px;row-gap:2px}
+      .directoryItem{grid-template-columns:3px 19px minmax(0,1fr) auto;gap:6px;min-height:34px;padding:4px 5px 4px 2px;border-bottom-color:#dfe7e2}
+      .directoryItem:nth-child(8n+1),.directoryItem:nth-child(8n+2),.directoryItem:nth-child(8n+3),.directoryItem:nth-child(8n+4){background:#fff}
+      .directoryItem:nth-child(6n+1),.directoryItem:nth-child(6n+2),.directoryItem:nth-child(6n+3){background:#f9fbf8}
+      .directoryNumber{font-size:7.5px;font-weight:700}
+      .directoryMain strong{font-size:9px;line-height:1.18}
+      .directoryMain small{margin-top:2px;font-size:7.4px;line-height:1.12}
+      .directoryValue b{font-size:8.5px}
+      .directoryValue small{font-size:6.5px}
+      .topGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+      .topCard{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:start;min-height:0;padding:13px;border-color:#e4e9e5;border-radius:12px;background:#fff}
+      .directoryGrid{column-gap:13px;row-gap:7px}
+      .directoryItem{grid-template-columns:3px 23px minmax(0,1fr);align-items:start;min-height:0;padding:10px 8px 10px 3px;border:1px solid #e4e9e5;border-radius:9px;background:#fff}
+      .directoryItem:nth-child(6n+1),.directoryItem:nth-child(6n+2),.directoryItem:nth-child(6n+3){background:#fff}
+      .clientFacts{min-width:0}
+      .clientFacts p{margin:0 0 4px;color:#66746d;font-size:10.2px;font-weight:400;line-height:1.32}
+      .clientFacts p:last-child{margin-bottom:0}
+      .clientFacts strong{color:#3f4a45;font-size:10.6px;font-weight:800}
+      .topRank{width:26px;height:26px;font-size:11.5px}
+      .directoryNumber{padding-top:2px;font-size:9.5px}
+      @media print{
+        .meta{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:11px 16px}
+        .card{min-height:58px;padding:9px 10px}
+        .topGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+        .topCard{min-height:0;padding:12px}
+        .clientFacts p{font-size:10px;line-height:1.3}
+        .clientFacts strong{font-size:10.4px}
+        .directoryGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+      }
     </style>
   </head>
   <body>
-    <section class="page">
+    <section class="page coverPage">
       <div class="hero">
-        <p class="eyebrow">BIPA · Plan de activación mensual</p>
+        <p class="eyebrow">BIPA Cartera Inteligente · Plan de activación mensual</p>
         <h1>${escapeHtml(group.seller)}</h1>
         <p>Una guía comercial para enfocar clientes que, en promedio, realizan compras de mayor valor cuando se reactivan.</p>
       </div>
@@ -1021,19 +1457,20 @@ function sellerPdfHtml(group) {
         <div class="card"><span>Zonas filtradas</span><strong>${selectedZones.length ? fmt.format(selectedZones.length) : "Todas"}</strong></div>
       </div>
       <div class="content">
-        <p class="note"><strong>Oportunidad de próxima venta en total:</strong> ${money.format(recoveryPotential)}. Es una estimación obtenida al sumar los promedios por factura de ${fmt.format(customersWithHistory.length)} clientes con historial, eliminando clientes repetidos y filas exactamente duplicadas. El promedio de oportunidad por cliente es ${money.format(averagePotential)}. La mayor compra se muestra aparte como referencia motivacional. <strong>No representa una venta garantizada.</strong><br><strong>Control aplicado:</strong> ${escapeHtml(duplicateNote)}<br><strong>Zonas incluidas:</strong> ${escapeHtml(zoneLabel)}.</p>
+        <p class="note"><strong>Oportunidad de próxima venta en total:</strong> ${money.format(recoveryPotential)}.<br><strong>Promedio por cliente con historial:</strong> ${money.format(averagePotential)}.<br><strong>Zonas incluidas:</strong> ${escapeHtml(zoneLabel)}.</p>
         <p class="sectionTag">Oportunidades prioritarias</p>
         <h2 class="sectionTitle">Top 10 oportunidades por promedio de compra</h2>
         <p class="sectionSub">Ordenados por el valor promedio de una factura, no por el histórico acumulado.</p>
         <div class="topGrid">${topCards}</div>
       </div>
     </section>
-    <section class="page detailBreak">
+    <section class="page directoryPage">
       <div class="content">
-        <div class="detailHeader"><div><p class="sectionTag">Gestión detallada</p><h2>Clientes por reactivar</h2></div><p>${fmt.format(pendingCount)} clientes únicos pendientes<br>según los filtros elegidos.</p></div>
-        <div class="clientGrid">${clientCards}</div>
+        <div class="detailHeader"><div><p class="sectionTag">Directorio comercial</p><h2>Todos los clientes por reactivar</h2></div><p>${fmt.format(pendingCount)} clientes únicos · Ordenados por zona y antigüedad</p></div>
+        <div class="directoryLegend"><strong>Tiempo sin comprar:</strong><span><i class="g"></i>Hasta 60 días</span><span><i class="y"></i>61–90</span><span><i class="o"></i>91–180</span><span><i class="r"></i>Más de 180</span><span><i class="n"></i>Sin historial</span></div>
+        <div class="directoryGrid">${clientCards}</div>
       </div>
-      <div class="footer">Generado desde el portal BIPA el ${escapeHtml(generatedAt)}. La información se calcula con la hoja CLIENTES y los registros de FACTURACIÓN disponibles.</div>
+      <div class="footer">BIPA Cartera Inteligente · Plan de activación comercial · Actualizado el ${escapeHtml(generatedAt)}.</div>
     </section>
     <script>window.addEventListener("load",()=>setTimeout(()=>window.print(),250));<\/script>
   </body>
@@ -1283,4 +1720,5 @@ async function boot() {
   });
 }
 
+applyViewMode(false);
 boot();
