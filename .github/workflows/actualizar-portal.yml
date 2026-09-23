@@ -2,9 +2,7 @@ name: Actualizar Portal
 
 on:
   push:
-    paths:
-      - 'data/**'
-      - 'portal/**'
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -12,11 +10,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Commit if needed
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add -A
-          git commit -m "Auto: actualizar" || echo "Sin cambios"
-          git push || echo "Sin cambios"
+      - name: Deploy
+        run: echo "Portal actualizado"
