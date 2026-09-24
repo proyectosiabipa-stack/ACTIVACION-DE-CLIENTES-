@@ -1,131 +1,226 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071a14">
-  <title>BIPA Cartera Inteligente</title><link rel="stylesheet" href="styles.css?v=20260922-15">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1a13">
+  <meta name="robots" content="noindex,nofollow">
+  <title>BIPA Cartera Inteligente</title>
+  <link rel="icon" href="./logo.svg" type="image/svg+xml">
+  <script>
+    // Aplica el tema antes de pintar para evitar parpadeo.
+    try {
+      const saved = localStorage.getItem("bipa:theme");
+      const dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    } catch { document.documentElement.dataset.theme = "light"; }
+  </script>
+  <script type="module" crossorigin src="./app/index-DrekVAz6.js"></script>
+  <link rel="modulepreload" crossorigin href="./app/charts-BSTquc9E.js">
+  <link rel="stylesheet" crossorigin href="./app/index-CrY2z2AY.css">
 </head>
 <body>
-  <div class="ambient ambientOne"></div><div class="ambient ambientTwo"></div>
-  <header class="topbar">
-    <a class="brand" href="#inicio"><span class="brandLogoWrap"><img src="assets/logo.svg" alt="BIPA Cartera Inteligente"></span><span><strong>BIPA Cartera Inteligente</strong><small>Gestión comercial</small></span></a>
-    <nav><a href="#dashboard" data-view-link="dashboard">Dashboard</a><a href="#enviar" data-view-link="send">Enviar a vendedor</a><a href="#resumen-final" data-view-link="final">Resumen final</a><a href="#articulos" data-view-link="articles">Artículos</a></nav>
-    <button id="exportBtn" class="exportButton" type="button"><span>↓</span> Exportar vista</button>
-  </header>
-  <main class="shell" id="inicio">
-    <section class="hero reveal dashboardOnly">
-      <div class="heroMain">
-        <p class="eyebrow"><span></span> Centro de mando · Cartera de clientes</p>
-        <h1>Vea la salud de su cartera.<br><em>Decida dónde actuar.</em></h1>
-        <p class="lead">Una lectura clara de quién compra, quién está dejando de comprar y qué oportunidades debe atender primero el equipo comercial.</p>
-        <div class="heroLegend"><span><i class="dot active"></i> Compra reciente</span><span><i class="dot risk"></i> Requiere seguimiento</span><span><i class="dot vacant"></i> Vacante / por confirmar</span></div>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <a class="brand" href="#" data-nav="dashboard">
+        <span class="brandMark"><img src="./logo.svg" alt=""></span>
+        <span class="brandText"><strong>BIPA</strong><small>Cartera Inteligente</small></span>
+      </a>
+      <nav class="nav">
+        <span class="navLabel">Análisis</span>
+        <a href="#" data-nav="dashboard"><span data-icon="dashboard"></span><span>Dashboard</span></a>
+        <a href="#resumen-final" data-nav="final"><span data-icon="calendar"></span><span>Resumen final</span></a>
+        <a href="#articulos" data-nav="articles"><span data-icon="package"></span><span>Artículos</span></a>
+        <span class="navLabel">Acción</span>
+        <a href="#enviar" data-nav="send"><span data-icon="send"></span><span>Enviar a vendedor</span><em class="navBadge" id="sendBadge"></em></a>
+      </nav>
+      <div class="sideFoot">
+        <div class="statusCard" id="statusCard">
+          <div class="statusLine"><i class="dot"></i><strong id="statusLabel">Conectando…</strong></div>
+          <small id="statusDetail">Leyendo Google Sheets</small>
+          <small class="period" id="periodText"></small>
+        </div>
+        <div class="sideActions">
+          <button class="iconButton" type="button" id="refreshBtn" data-tip="Actualizar datos desde Google Sheets"><span data-icon="refresh"></span></button>
+          <button class="iconButton" type="button" id="themeBtn" data-tip="Cambiar tema claro / oscuro"><span data-icon="moon"></span></button>
+        </div>
       </div>
-      <aside class="heroPanel"><div class="liveBadge" id="liveBadge"><i></i><span id="liveBadgeText">Conectando con Google Sheets…</span></div><span>Periodo analizado</span><strong id="periodText">—</strong><small id="dataUpdatedAt" class="dataUpdatedAt">Actualizando información…</small><hr><small>La asignación comercial viene de la hoja CLIENTES: verde es vendedor confirmado, rojo es vacante o por confirmar.</small></aside>
-    </section>
-    <section class="decisionGuide reveal dashboardOnly"><div class="guideIcon">◎</div><div><strong>Lectura rápida para gerencia</strong><p>Los indicadores cambian al usar los filtros. Así puede revisar una zona, un vendedor o un tipo de cliente sin perder el contexto.</p></div><a href="#clientes">Ir al detalle <span>→</span></a></section>
-    <section class="filterDock reveal dashboardOnly" aria-label="Filtros de análisis">
-      <div class="filterTitle"><span>01</span><div><strong>Enfoque del análisis</strong><small>Seleccione la parte de la cartera que desea revisar</small></div><button id="filtersToggle" class="filtersToggle" type="button" aria-expanded="true">Ocultar filtros ↑</button></div>
-      <div class="filters" id="filtersBody">
-        <label>Vendedor<select id="sellerFilter"></select></label><label>Asignación<select id="assignmentFilter"><option value="">Todos</option><option value="CONFIRMADO">Vendedor confirmado</option><option value="VACANTE">Vacante / por confirmar</option></select></label><label>Zona<select id="zoneFilter"></select></label><label>Tipo de cliente<select id="typeFilter"></select></label><label>Tiempo sin compra<select id="segmentFilter"></select></label>
-        <label>Situación<select id="statusFilter"><option value="">Todos</option><option value="ACTIVO">Compra reciente</option><option value="INACTIVO">Sin compra reciente</option></select></label>
-        <label class="searchBox">Buscar cliente<input id="searchInput" type="search" placeholder="Nombre, código, zona…"></label>
-        <label class="rangeFilter">Rango de días sin compra<div class="rangeBox"><div class="rangeTrackWrap"><div id="rangeFill" class="rangeFill"></div></div><div class="rangeInputs"><input id="dayMin" type="range" min="0" max="365" value="0"><input id="dayMax" type="range" min="0" max="365" value="365"></div><div class="rangeSummary"><span id="dayRangeLabel">Mostrar clientes entre 0 y 365+ días sin compra</span><button type="button" id="clearDayRangeBtn" class="linkButton">Restablecer</button></div></div></label>
-        <button id="resetBtn" class="resetButton" type="button">Limpiar todo</button>
-      </div>
-      <div class="filterSummary"><span class="summaryLabel">Vista actual</span><div id="activeFilters" class="filterChips"></div></div>
-    </section>
-    <section id="resumen" class="sectionBlock reveal dashboardOnly">
-      <div class="sectionHeading"><div><span class="sectionNumber">02</span><p class="eyebrow">Panorama ejecutivo</p><h2>Lo esencial, en una sola mirada</h2></div><p>Estos resultados corresponden exactamente a los filtros seleccionados.</p></div>
-      <div class="kpis" id="kpis"></div><div class="highlightStrip" id="highlightStrip"></div>
-    </section>
-    <section class="executivePanel reveal dashboardOnly">
-      <div class="execText"><span class="eyebrow soft">Conclusión automática</span><h2 id="executiveHeadline">Analizando la cartera comercial…</h2><p id="executiveText"></p><button class="secondaryButton dataRefreshButton" id="dataRefreshButton" type="button">Actualizar datos ahora</button></div>
-      <div class="donutGrid">
-        <article class="donutCard"><div class="donutChart" id="donutActiveChart"><div class="donutInner"><strong id="donutActiveValue">0%</strong><span>Activos</span></div></div><small>Cartera saludable</small></article>
-        <article class="donutCard"><div class="donutChart" id="donutRiskChart"><div class="donutInner"><strong id="donutRiskValue">0%</strong><span>En riesgo</span></div></div><small>Necesita seguimiento</small></article>
-        <article class="donutCard"><div class="donutChart" id="donutAssignChart"><div class="donutInner"><strong id="donutAssignValue">0%</strong><span>Vacantes</span></div></div><small>Por confirmar</small></article>
-      </div>
-    </section>
-    <section class="dataFeedback reveal dashboardOnly" id="dataFeedback"></section>
-    <section id="analisis" class="sectionBlock reveal dashboardOnly">
-      <div class="sectionHeading"><div><span class="sectionNumber">03</span><p class="eyebrow">Oportunidades</p><h2>Dónde concentrar el esfuerzo comercial</h2></div><p>Una guía práctica para priorizar llamadas, visitas y recuperación.</p></div>
-      <div class="opportunityGrid" id="opportunityGrid"></div>
-      <div class="dashboard">
-        <article class="panel wide"><div class="panelHead"><div><span class="panelTag">Rendimiento comercial</span><h2>Actividad por vendedor</h2><p>Compare clientes con compra reciente, sin compra reciente y vacantes por confirmar.</p></div><div class="chartLegend"><span><i class="dot active"></i> Compran</span><span><i class="dot critical"></i> Sin compra reciente</span><span><i class="dot vacant"></i> Vacantes</span></div></div><div id="sellerBars" class="bars"></div></article>
-        <article class="panel"><span class="panelTag">Asignación</span><h2>Vendedores confirmados y vacantes</h2><p class="panelIntro">Muestra qué parte de la cartera ya tiene vendedor confirmado y cuál sigue por confirmar.</p><div id="assignmentBars" class="bars compact"></div></article>
-        <article class="panel"><span class="panelTag">Antigüedad</span><h2>Tiempo sin comprar</h2><p class="panelIntro">Muestra el nivel de urgencia de la cartera.</p><div id="segmentBars" class="bars compact"></div></article>
-        <article class="panel"><span class="panelTag">Comportamiento</span><h2>Clientes con compra por mes</h2><p class="panelIntro">Evolución de clientes facturados durante el año.</p><div id="monthBars" class="bars compact"></div></article>
-      </div>
-    </section>
-    <section id="clientes" class="sectionBlock reveal dashboardOnly">
-      <div class="sectionHeading"><div><span class="sectionNumber">04</span><p class="eyebrow">Profundice</p><h2>Territorios, tipos y clientes</h2></div><p>Del panorama general a la acción concreta.</p></div>
-      <div class="tables">
-        <article class="panel"><span class="panelTag">Cobertura territorial</span><h2>Actividad por zona</h2><div class="tableWrap"><table id="zoneTable"></table></div></article>
-        <article class="panel"><span class="panelTag">Perfil comercial</span><h2>Actividad por tipo de cliente</h2><div class="tableWrap"><table id="typeTable"></table></div></article>
-        <article class="panel full"><div class="panelHead"><div><span class="panelTag">Lista de acción</span><h2>Clientes para seguimiento</h2><p id="detailCaption"></p></div><span class="clickHint">Seleccione una fila para ver la recomendación →</span></div><div class="tableWrap large"><table id="clientTable"></table></div></article>
-      </div>
-    </section>
-    <section id="enviar" class="sectionBlock reveal sendOnly">
-      <div class="sectionHeading"><div><span class="sectionNumber">05</span><p class="eyebrow">Enviar a vendedor</p><h2>Activación mensual por WhatsApp</h2></div><p>Cada tarjeta resume los clientes que el vendedor debe activar este mes. Copie el texto y envíelo directo.</p></div>
-      <div class="sendToolbar">
-        <div><strong id="sendSummary">Preparando mensajes…</strong><small>Se incluyen clientes confirmados sin compra en los últimos 30 días o nunca facturados.</small></div>
-        <label class="sellerPicker">Vendedor<select id="sellerMessageFilter"><option value="">Todos los vendedores</option></select></label>
-        <div class="zonePicker" id="sellerZonePicker">
-          <span>Zonas</span>
-          <button id="zonePickerButton" class="zonePickerButton" type="button" aria-expanded="false">
-            <strong id="zonePickerLabel">Todas las zonas</strong><small>Buscar y seleccionar</small>
-          </button>
-          <div class="zonePickerPanel" id="zonePickerPanel" hidden>
-            <input id="zoneSearchInput" type="search" placeholder="Buscar zona…" aria-label="Buscar zona">
-            <div id="zoneOptions" class="zoneOptions"></div>
-            <button id="clearSellerZones" class="linkButton" type="button">Limpiar zonas</button>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="topTitle">
+          <a class="mobileBrand" href="#" data-nav="dashboard"><img src="./logo.svg" alt="BIPA"></a>
+          <div>
+            <h1 id="viewTitle">Dashboard</h1>
+            <p id="viewSubtitle">Salud de la cartera y dónde actuar</p>
           </div>
-          <div id="selectedZoneChips" class="selectedZoneChips"></div>
         </div>
-        <button id="copyAllSellerMessages" class="resetButton" type="button">Copiar todos</button>
-      </div>
-      <div id="sellerMessages" class="sellerMessages"></div>
-    </section>
-    <section id="resumen-final" class="sectionBlock reveal finalOnly">
-      <div class="sectionHeading"><div><span class="sectionNumber">06</span><p class="eyebrow">Resumen final</p><h2>Cierre por mes o rango de meses</h2></div><p>Seleccione uno o varios meses para revisar resultados históricos sin mezclarlo con la lectura actual de la cartera.</p></div>
-      <div class="finalToolbar">
-        <div><strong id="finalSummary">Seleccione el periodo a revisar</strong><small>La lectura se calcula con las compras registradas dentro de los meses elegidos.</small></div>
-        <div class="monthPicker" id="finalMonthPicker">
-          <span>Meses del análisis</span>
-          <div id="finalMonthOptions" class="monthOptions"></div>
+        <div class="topActions">
+          <button class="searchTrigger" type="button" id="paletteBtn" aria-label="Buscar">
+            <span data-icon="search"></span><span class="searchText">Buscar cliente, vendedor, zona…</span><kbd>Ctrl K</kbd>
+          </button>
+          <button class="button ghost onlyDashboard" type="button" id="exportBtn" data-tip="Descargar los clientes del filtro actual en CSV"><span data-icon="download"></span><span class="hideSm">Exportar</span></button>
+          <button class="iconButton mobileOnly" type="button" id="themeBtnMobile" aria-label="Cambiar tema"><span data-icon="moon"></span></button>
         </div>
-        <button id="finalClearMonths" class="resetButton" type="button">Ver todo</button>
-      </div>
-      <div class="finalKpis" id="finalKpis"></div>
-      <div class="finalInsight" id="finalInsight"></div>
-      <div class="finalGrid">
-        <article class="panel"><span class="panelTag">Evolución</span><h2>Resultado por mes</h2><p class="panelIntro">Clientes que compraron y venta total registrada en cada mes seleccionado.</p><div id="finalMonthBars" class="bars compact"></div></article>
-        <article class="panel"><span class="panelTag">Vendedores</span><h2>Resultado por vendedor</h2><p class="panelIntro">Ranking de cartera activada y ventas dentro del periodo.</p><div class="tableWrap finalTableWrap"><table id="finalSellerTable"></table></div></article>
-        <article class="panel"><span class="panelTag">Zonas</span><h2>Resultado por zona</h2><p class="panelIntro">Dónde se concentró la facturación del periodo.</p><div class="tableWrap finalTableWrap"><table id="finalZoneTable"></table></div></article>
-        <article class="panel full"><span class="panelTag">Clientes</span><h2>Clientes facturados del periodo</h2><p class="panelIntro">Lista de clientes que sí compraron dentro del rango seleccionado.</p><div class="tableWrap large"><table id="finalClientTable"></table></div></article>
-      </div>
-    </section>
-    <section id="articulos" class="sectionBlock reveal articleOnly">
-      <div class="sectionHeading"><div><span class="sectionNumber">07</span><p class="eyebrow">Artículos</p><h2>Análisis comercial de productos</h2></div><p>Revise qué productos mueven más venta, unidades y peso para entender el comportamiento real del portafolio.</p></div>
-      <div class="articleToolbar">
-        <div><strong id="articleSummary">Preparando análisis de artículos</strong><small>Incluye venta, unidades, clientes compradores y estadísticas por peso.</small></div>
-        <label>Buscar artículo<input id="articleSearchInput" type="search" placeholder="Producto o código…"></label>
-        <div class="monthPicker" id="articleMonthPicker"><span>Meses</span><div id="articleMonthOptions" class="monthOptions"></div></div>
-        <button id="articleClearMonths" class="resetButton" type="button">Ver todo</button>
-      </div>
-      <div id="articleEmptyState" class="articleEmptyState"></div>
-      <div class="articleKpis" id="articleKpis"></div>
-      <div class="articleGrid">
-        <article class="panel"><span class="panelTag">Peso</span><h2>Top artículos por peso</h2><p class="panelIntro">Productos con mayor volumen de peso registrado.</p><div id="articleWeightBars" class="bars compact"></div></article>
-        <article class="panel"><span class="panelTag">Venta</span><h2>Top artículos por venta</h2><p class="panelIntro">Productos que más facturación generan.</p><div id="articleSalesBars" class="bars compact"></div></article>
-        <article class="panel"><span class="panelTag">Unidades</span><h2>Top artículos por unidades</h2><p class="panelIntro">Productos con mayor salida por cantidad.</p><div id="articleUnitBars" class="bars compact"></div></article>
-        <article class="panel"><span class="panelTag">Eficiencia</span><h2>Venta por peso</h2><p class="panelIntro">Cuánto ingreso genera cada unidad de peso registrada.</p><div id="articleWeightValueBars" class="bars compact"></div></article>
-        <article class="panel full"><span class="panelTag">Detalle</span><h2>Ranking general de artículos</h2><p class="panelIntro">Tabla ordenada por venta dentro del periodo seleccionado.</p><div class="tableWrap large"><table id="articleTable"></table></div></article>
-      </div>
-    </section>
-    <aside class="detailPanel dashboardOnly" id="detailPanel"><div class="panelHead"><div><span class="panelTag">Ficha individual</span><h2>Detalle del cliente</h2><p id="detailClientTitle">Seleccione un cliente.</p></div><button id="closeDetailBtn" class="ghostButton">Cerrar ×</button></div><div id="detailClientContent" class="detailContent"></div></aside>
-    <footer><span>BIPA Cartera Inteligente</span><p>Estado calculado exclusivamente a partir de la facturación registrada.</p></footer>
-  </main>
-<div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div><script src="app.js?v=20260923-02"></script>
-</body></html>
+      </header>
 
+      <main class="content">
+        <!-- ===================== DASHBOARD ===================== -->
+        <section class="view" data-view="dashboard">
+          <div class="filterBar card" id="filterBar">
+            <div class="filterHead">
+              <button class="filterToggle" type="button" id="filterToggle" aria-expanded="true"><span data-icon="filter"></span>Filtros<em id="filterCount"></em><span data-icon="chevron" class="chev"></span></button>
+              <label class="searchField"><span data-icon="search"></span><input id="searchInput" type="search" placeholder="Filtrar por nombre, código, zona…" autocomplete="off"></label>
+              <button class="button subtle" type="button" id="resetBtn">Limpiar</button>
+            </div>
+            <div class="filterGrid" id="filterGrid">
+              <label class="field"><span>Vendedor</span><select id="sellerFilter"></select></label>
+              <label class="field"><span>Asignación</span><select id="assignmentFilter"><option value="">Todos</option><option value="CONFIRMADO">Vendedor confirmado</option><option value="VACANTE">Vacante / por confirmar</option></select></label>
+              <label class="field"><span>Zona</span><select id="zoneFilter"></select></label>
+              <label class="field"><span>Tipo de cliente</span><select id="typeFilter"></select></label>
+              <label class="field"><span>Tiempo sin compra</span><select id="segmentFilter"></select></label>
+              <label class="field"><span>Situación</span><select id="statusFilter"><option value="">Todos</option><option value="ACTIVO">Compra reciente</option><option value="INACTIVO">Sin compra reciente</option></select></label>
+              <div class="field range">
+                <span>Días sin compra <b id="dayRangeLabel">0 – 365+</b></span>
+                <div class="rangeBox">
+                  <div class="rangeTrack"><i id="rangeFill"></i></div>
+                  <input id="dayMin" type="range" min="0" max="365" value="0" aria-label="Mínimo de días sin compra">
+                  <input id="dayMax" type="range" min="0" max="365" value="365" aria-label="Máximo de días sin compra">
+                </div>
+              </div>
+            </div>
+            <div class="chips" id="activeFilters"></div>
+          </div>
 
+          <div class="kpiGrid" id="kpis"></div>
+
+          <div class="grid insightRow">
+            <article class="card insight">
+              <span class="eyebrow"><span data-icon="spark"></span>Conclusión automática</span>
+              <h2 id="executiveHeadline">Analizando la cartera…</h2>
+              <p id="executiveText"></p>
+            </article>
+            <article class="card rings" id="rings"></article>
+          </div>
+
+          <div class="sectionHead"><div><h2>Dónde concentrar el esfuerzo</h2><p>Prioridades del filtro actual para llamadas, visitas y recuperación.</p></div></div>
+          <div class="grid highlightRow" id="highlights"></div>
+          <article class="card aging" id="aging"></article>
+
+          <div class="grid chartGrid">
+            <article class="card span2">
+              <div class="cardHead"><div><h3>Actividad por vendedor</h3><p>Clientes con compra reciente frente a sin compra reciente · top 12</p></div>
+                <div class="legend"><span><i style="--c:var(--good)"></i>Compran</span><span><i style="--c:var(--bad-soft-strong)"></i>Sin compra reciente</span></div></div>
+              <div class="chart" id="chartSellers"></div>
+            </article>
+            <article class="card">
+              <div class="cardHead"><div><h3>Tiempo sin comprar</h3><p>Nivel de urgencia de la cartera</p></div></div>
+              <div class="chart" id="chartSegments"></div>
+              <div class="cardHead spaced"><div><h3>Asignación comercial</h3><p>Vendedor confirmado frente a vacantes</p></div></div>
+              <div class="chart" id="chartAssignment"></div>
+            </article>
+            <article class="card">
+              <div class="cardHead"><div><h3>Clientes con compra por mes</h3><p>Mes de la última factura de cada cliente</p></div></div>
+              <div class="chart" id="chartMonths"></div>
+            </article>
+          </div>
+
+          <div id="dataFeedback"></div>
+
+          <div class="sectionHead"><div><h2>Territorios, tipos y clientes</h2><p>Del panorama general a la acción concreta. Haga clic en un encabezado para ordenar.</p></div></div>
+          <article class="card flush">
+            <div class="cardHead pad"><div><h3 id="groupTitle">Actividad por zona</h3><p>Top 30 del filtro actual</p></div>
+              <div class="segmented" id="groupTabs" role="tablist"><button type="button" class="active" data-group="zona" role="tab">Por zona</button><button type="button" data-group="tipo_cliente" role="tab">Por tipo de cliente</button></div></div>
+            <div class="tableWrap"><table id="groupTable"></table></div>
+          </article>
+          <article class="card flush">
+            <div class="cardHead pad"><div><h3>Clientes para seguimiento</h3><p id="clientCaption"></p></div><span class="hint">Seleccione un cliente para ver su ficha →</span></div>
+            <div class="tableWrap tall"><table id="clientTable" class="clickable"></table></div>
+          </article>
+        </section>
+
+        <!-- ===================== ENVIAR A VENDEDOR ===================== -->
+        <section class="view" data-view="send" hidden>
+          <div class="toolbar card">
+            <div class="toolbarText"><strong id="sendSummary">Preparando mensajes…</strong><small>Clientes confirmados sin compra en los últimos 30 días o nunca facturados.</small></div>
+            <label class="field compact"><span>Vendedor</span><select id="sellerMessageFilter"><option value="">Todos los vendedores</option></select></label>
+            <div class="zonePicker" id="zonePicker">
+              <span class="fieldLabel">Zonas</span>
+              <button class="zoneButton" type="button" id="zonePickerButton" aria-expanded="false"><span id="zonePickerLabel">Todas las zonas</span><span data-icon="chevron"></span></button>
+              <div class="zonePanel" id="zonePanel" hidden>
+                <label class="searchField"><span data-icon="search"></span><input id="zoneSearchInput" type="search" placeholder="Buscar zona…"></label>
+                <div class="zoneOptions" id="zoneOptions"></div>
+                <button class="button subtle small" type="button" id="clearSellerZones">Limpiar zonas</button>
+              </div>
+            </div>
+            <button class="button primary" type="button" id="copyAllSellerMessages"><span data-icon="copy"></span>Copiar todos</button>
+          </div>
+          <div class="chips" id="selectedZoneChips"></div>
+          <div class="sellerGrid" id="sellerMessages"></div>
+        </section>
+
+        <!-- ===================== RESUMEN FINAL ===================== -->
+        <section class="view" data-view="final" hidden>
+          <div class="toolbar card">
+            <div class="toolbarText"><strong id="finalSummary">Seleccione el periodo</strong><small>Calculado con las compras registradas dentro de los meses elegidos.</small></div>
+            <div class="monthChips" id="finalMonths"></div>
+            <button class="button subtle" type="button" id="finalClearMonths">Ver todo</button>
+          </div>
+          <div class="kpiGrid" id="finalKpis"></div>
+          <article class="card insight" id="finalInsight"></article>
+          <article class="card">
+            <div class="cardHead"><div><h3>Resultado por mes</h3><p>Venta total registrada y clientes que compraron en cada mes</p></div></div>
+            <div class="chart" id="chartFinalMonths"></div>
+          </article>
+          <div class="grid two">
+            <article class="card flush"><div class="cardHead pad"><div><h3>Resultado por vendedor</h3><p>Ranking de cartera activada y ventas</p></div></div><div class="tableWrap"><table id="finalSellerTable"></table></div></article>
+            <article class="card flush"><div class="cardHead pad"><div><h3>Resultado por zona</h3><p>Dónde se concentró la facturación</p></div></div><div class="tableWrap"><table id="finalZoneTable"></table></div></article>
+          </div>
+          <article class="card flush"><div class="cardHead pad"><div><h3>Clientes facturados del periodo</h3><p>Clientes que compraron dentro del rango seleccionado</p></div></div><div class="tableWrap tall"><table id="finalClientTable" class="clickable"></table></div></article>
+        </section>
+
+        <!-- ===================== ARTÍCULOS ===================== -->
+        <section class="view" data-view="articles" hidden>
+          <div class="toolbar card">
+            <div class="toolbarText"><strong id="articleSummary">Preparando artículos…</strong><small>Venta, unidades, clientes compradores y peso por producto.</small></div>
+            <label class="searchField boxed"><span data-icon="search"></span><input id="articleSearchInput" type="search" placeholder="Producto o código…" autocomplete="off"></label>
+            <div class="monthChips" id="articleMonths"></div>
+            <button class="button subtle" type="button" id="articleClearMonths">Ver todo</button>
+            <label class="switch" data-tip="FLETE es un servicio: al no registrar peso distorsiona la venta por peso y los rankings de productos."><input type="checkbox" id="articleFreight" checked>Incluir fletes</label>
+          </div>
+          <div id="articleEmptyState"></div>
+          <div class="kpiGrid" id="articleKpis"></div>
+          <div class="grid two">
+            <article class="card"><div class="cardHead"><div><h3>Top artículos por venta</h3><p>Productos que más facturación generan</p></div></div><div class="chart" id="chartArtSales"></div></article>
+            <article class="card"><div class="cardHead"><div><h3>Top artículos por peso</h3><p>Mayor volumen de peso registrado</p></div></div><div class="chart" id="chartArtWeight"></div></article>
+            <article class="card"><div class="cardHead"><div><h3>Top artículos por unidades</h3><p>Mayor salida por cantidad</p></div></div><div class="chart" id="chartArtUnits"></div></article>
+            <article class="card"><div class="cardHead"><div><h3>Venta por peso</h3><p>Ingreso por cada unidad de peso registrada</p></div></div><div class="chart" id="chartArtValue"></div></article>
+          </div>
+          <article class="card flush"><div class="cardHead pad"><div><h3>Ranking general de artículos</h3><p>Ordenado por venta dentro del periodo</p></div></div><div class="tableWrap tall"><table id="articleTable"></table></div></article>
+        </section>
+
+        <footer class="footer">BIPA Cartera Inteligente · Estado calculado exclusivamente a partir de la facturación registrada.</footer>
+      </main>
+    </div>
+
+    <nav class="tabbar" aria-label="Navegación">
+      <a href="#" data-nav="dashboard"><span data-icon="dashboard"></span><span>Inicio</span></a>
+      <a href="#enviar" data-nav="send"><span data-icon="send"></span><span>Enviar</span></a>
+      <a href="#resumen-final" data-nav="final"><span data-icon="calendar"></span><span>Resumen</span></a>
+      <a href="#articulos" data-nav="articles"><span data-icon="package"></span><span>Artículos</span></a>
+    </nav>
+  </div>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="drawerTitle"></aside>
+
+  <div class="palette" id="palette" hidden>
+    <div class="paletteBox" role="dialog" aria-modal="true" aria-label="Buscar">
+      <label class="paletteInput"><span data-icon="search"></span><input id="paletteInput" type="text" placeholder="Buscar cliente, código, vendedor, zona o vista…" autocomplete="off"><kbd>Esc</kbd></label>
+      <div class="paletteResults" id="paletteResults" role="listbox"></div>
+    </div>
+  </div>
+
+</body>
+</html>
