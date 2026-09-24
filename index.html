@@ -15,9 +15,9 @@
       document.documentElement.dataset.theme = dark ? "dark" : "light";
     } catch { document.documentElement.dataset.theme = "light"; }
   </script>
-  <script type="module" crossorigin src="./app/index-D7CkVriU.js"></script>
-  <link rel="modulepreload" crossorigin href="./app/charts-BSTquc9E.js">
-  <link rel="stylesheet" crossorigin href="./app/index-CrY2z2AY.css">
+  <script type="module" crossorigin src="./app/index-Cw1T7EA8.js"></script>
+  <link rel="modulepreload" crossorigin href="./app/charts-DHG-3D5Z.js">
+  <link rel="stylesheet" crossorigin href="./app/index-f9z8mroZ.css">
 </head>
 <body>
   <div class="app">
@@ -43,6 +43,7 @@
         <div class="sideActions">
           <button class="iconButton" type="button" id="refreshBtn" data-tip="Actualizar datos desde Google Sheets"><span data-icon="refresh"></span></button>
           <button class="iconButton" type="button" id="themeBtn" data-tip="Cambiar tema claro / oscuro"><span data-icon="moon"></span></button>
+          <button class="iconButton" type="button" id="lockBtn" data-tip="Bloquear: volver a pedir la clave en este dispositivo"><span data-icon="lock"></span></button>
         </div>
       </div>
     </aside>
@@ -147,7 +148,7 @@
             <label class="field compact"><span>Vendedor</span><select id="sellerMessageFilter"><option value="">Todos los vendedores</option></select></label>
             <div class="zonePicker" id="zonePicker">
               <span class="fieldLabel">Zonas</span>
-              <button class="zoneButton" type="button" id="zonePickerButton" aria-expanded="false"><span id="zonePickerLabel">Todas las zonas</span><span data-icon="chevron"></span></button>
+              <button class="zoneButton selectLike" type="button" id="zonePickerButton" aria-expanded="false"><span id="zonePickerLabel">Todas las zonas</span><span data-icon="chevron"></span></button>
               <div class="zonePanel" id="zonePanel" hidden>
                 <label class="searchField"><span data-icon="search"></span><input id="zoneSearchInput" type="search" placeholder="Buscar zona…"></label>
                 <div class="zoneOptions" id="zoneOptions"></div>
