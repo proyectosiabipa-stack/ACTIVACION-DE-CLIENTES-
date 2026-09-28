@@ -1,0 +1,11 @@
+# Nunca subir datos de clientes sin cifrar a este repositorio público.
+# Solo data.enc (cifrado) puede publicarse.
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+data/
+data.js
+data.json
+portal/
+.env
