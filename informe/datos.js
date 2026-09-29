@@ -174,7 +174,7 @@
       L.c.push(ci); L.p.push(pi);
       L.u.push(round2(numOf(r[H.unidades]))); L.pr.push(round2(numOf(r[H.precio]))); L.t.push(round2(numOf(r[H.total])));
       L.s.push(H.saldo >= 0 ? round2(numOf(r[H.saldo])) : 0); L.sv.push(H.vencido >= 0 ? round2(numOf(r[H.vencido])) : 0);
-      L.kg.push(H.peso >= 0 ? Math.round(numOf(r[H.peso]) * 1000) / 1000 : 0); // gramos del Excel
+      L.kg.push(H.peso >= 0 ? Math.round(numOf(r[H.peso]) * 1000) / 1000 : 0); // kilos del Excel
       if (day > maxDay) maxDay = day;
       control.lines++; control.venta_cent += Math.round(numOf(r[H.total]) * 100);
       if (H.saldo >= 0) control.saldo_cent += Math.round(numOf(r[H.saldo]) * 100);
