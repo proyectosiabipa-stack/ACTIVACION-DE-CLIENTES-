@@ -42,6 +42,16 @@
 
   <main id="app" class="layout" hidden>
     <form id="form" class="panel" aria-label="Opciones del informe">
+      <fieldset class="dataBox">
+        <legend>Datos</legend>
+        <p id="dataStatus" class="dataStatus"></p>
+        <p id="dataHint" class="hint"></p>
+        <div class="dataBtns">
+          <label class="btn ghost small fileBtn">Cargar Excel de facturación<input id="xlsInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+          <button id="sealBtn" class="btn ghost small" type="button" hidden>Descargar datos2.enc</button>
+        </div>
+      </fieldset>
+
       <fieldset>
         <legend>1 · ¿Para quién es?</legend>
         <label class="field"><span>Destinatario</span>
@@ -54,7 +64,7 @@
         </label>
         <div class="depth" role="radiogroup" aria-label="Profundidad">
           <label><input type="radio" name="depth" value="ejecutivo"><span><b>Ejecutivo</b><small>1 página</small></span></label>
-          <label><input type="radio" name="depth" value="estandar" checked><span><b>Estándar</b><small>Por secciones</small></span></label>
+          <label><input type="radio" name="depth" value="estandar" checked><span><b>Estándar</b><small id="depthStd">Por secciones</small></span></label>
           <label><input type="radio" name="depth" value="completo"><span><b>Completo</b><small>Con anexos</small></span></label>
         </div>
       </fieldset>
@@ -80,6 +90,7 @@
 
       <fieldset>
         <legend>3 · Recorte</legend>
+        <div id="empBox" class="field" hidden><span>Empresas</span><div id="empList" class="empList"></div></div>
         <label class="field"><span>Vendedor</span><select id="fSeller"></select></label>
         <label class="field"><span>Zona</span><select id="fZone"></select></label>
         <label class="field"><span>Tipo de cliente</span><select id="fType"></select></label>
@@ -102,6 +113,7 @@
         <div><span class="eyebrow">Vista previa</span><h2 id="pvTitle"></h2><p id="pvMeta"></p></div>
         <div class="actions">
           <button id="waBtn" class="btn ghost" type="button">Copiar para WhatsApp</button>
+          <button id="xlsBtn" class="btn ghost" type="button" hidden>Excel de respaldo</button>
           <button id="pdfBtn" class="btn primary" type="button">Generar PDF</button>
         </div>
       </div>
@@ -111,7 +123,11 @@
       <div class="card">
         <h3>Venta mensual</h3>
         <div id="pvChart" class="chart"></div>
-        <p class="legend"><i class="lp"></i>Periodo del informe <i class="lc"></i>Periodo de comparación</p>
+        <p id="pvLegend" class="legend"></p>
+      </div>
+      <div id="pvEmpCard" class="card" hidden>
+        <h3>Resultado por empresa</h3>
+        <div class="tableWrap"><table id="pvEmp" class="mini"></table></div>
       </div>
       <div class="card">
         <h3>Conclusiones clave</h3>
@@ -130,6 +146,10 @@
   <script src="./vendor/jspdf.plugin.autotable.min.js"></script>
   <script src="./motor.js"></script>
   <script src="./pdf.js"></script>
+  <script src="./datos.js"></script>
+  <script src="./motor2.js"></script>
+  <script src="./pdf2.js"></script>
+  <script src="./excel.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

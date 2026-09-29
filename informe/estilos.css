@@ -78,5 +78,29 @@ summary{cursor:pointer;font-weight:600;font-size:13.5px}
 .actionsList strong small{font-weight:400;color:var(--muted);font-size:11.5px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
 .toast.warn{background:var(--warn);color:#fff}
+.btn.small{padding:9px 12px;font-size:13px}
+.dataBox{background:var(--soft);border-radius:10px;padding:12px}
+.dataStatus{margin:0;font-size:13.5px}
+.dataBtns{display:flex;gap:6px;flex-wrap:wrap}
+.fileBtn{position:relative;overflow:hidden;display:inline-flex;align-items:center}
+.fileBtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.empList{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:9px}
+.kpi{border-left-width:4px}
+.kpi.tone-good{border-left-color:var(--good)}.kpi.tone-warn{border-left-color:var(--warn)}.kpi.tone-bad{border-left-color:var(--bad)}
+.kpi small b{margin-right:4px}
+.bar.stack{justify-content:flex-end}
+.stackIn{display:flex;flex-direction:column-reverse;width:70%;height:100%;justify-content:flex-start;opacity:.45}
+.bar.stack.p .stackIn{opacity:1}
+.bar .stackIn i{display:block;width:100%;border-radius:0}
+.bar .stackIn i:last-child{border-radius:4px 4px 0 0}
+.e0,.bar .stackIn i.e0{background:#16603f}.e1,.bar .stackIn i.e1{background:#c48e34}.e2,.bar .stackIn i.e2{background:#5678aa}.e3,.bar .stackIn i.e3{background:#965a8c}.e4,.bar .stackIn i.e4{background:#78aa8c}
+:root[data-theme="dark"] .e0,:root[data-theme="dark"] .bar .stackIn i.e0{background:#4fbf86}
+.legend i.e0,.legend i.e1,.legend i.e2,.legend i.e3,.legend i.e4{width:10px;height:10px;border-radius:2px;display:inline-block;margin-left:8px}
+.tableWrap{overflow-x:auto}
+table.mini{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+table.mini th{text-align:right;font-size:12px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);padding:6px 8px}
+table.mini td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.mini th:first-child,table.mini td:first-child{text-align:left}
+table.mini tr:last-child td{border-bottom:0}
 @media (max-width:900px){.layout{grid-template-columns:1fr}.panel{position:static}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:480px){.actions{width:100%}.actions .btn{flex:1}.back{display:none}}
