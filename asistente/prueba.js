@@ -8,7 +8,39 @@
   const norm = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
   const money = (v) => v.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Con los datos del portal (mensuales): solo preguntas que esas herramientas responden.
+  function buildBasic(T) {
+    const info = T.run("info_datos", {});
+    const ult = T.run("resumen_general", { periodo: "ultimo" });
+    const k = ult.indicadores, mesTxt = ult.periodo.toLowerCase();
+    const top = (dim) => (T.run("ventas_por", { dimension: dim, periodo: "ultimo", limite: 1 }).filas || [])[0];
+    const prod = top("producto"), seller = top("vendedor"), zone = top("zona"), client = top("cliente");
+    const debt = T.run("listas", { lista: "deudores", limite: 1 });
+    const trim = seller ? (T.run("ventas_por", { dimension: "vendedor", periodo: "trimestre", vendedor: seller.nombre, limite: 1 }).filas || [])[0] : null;
+    const serie = T.run("serie_mensual", {}).meses || [];
+    const prev = serie.length > 2 ? serie[serie.length - (info.mes_en_curso_incompleto ? 3 : 2)] : null;
+    return [
+      { q: `¿Cuánto vendimos en total en ${mesTxt}?`, n: k.venta },
+      { q: `¿Cuántos clientes compraron en ${mesTxt}?`, i: k.clientes_que_compraron },
+      { q: `¿Cuántas facturas se emitieron en ${mesTxt}?`, i: k.facturas },
+      { q: `¿Cuál fue el ticket promedio por factura en ${mesTxt}?`, n: k.ticket_por_factura },
+      { q: "¿Cuál es el saldo vencido total hoy?", n: k.saldo_vencido },
+      { q: "¿Cuánto es el saldo total por cobrar?", n: k.saldo_por_cobrar },
+      prod && { q: `¿Cuál fue el producto más vendido en ${mesTxt}?`, t: prod.nombre },
+      seller && { q: `¿Qué vendedor vendió más en ${mesTxt}?`, t: seller.nombre },
+      zone && { q: `¿Qué zona tuvo más venta en ${mesTxt}?`, t: zone.nombre },
+      client && { q: `¿Cuánto le vendimos a ${client.cliente} en ${mesTxt}?`, n: client.venta },
+      debt.resultado && debt.resultado[0] && { q: "¿Qué cliente tiene el mayor saldo vencido?", t: debt.resultado[0].cliente },
+      trim && { q: `¿Cuánto vendió ${trim.nombre} en el último trimestre cerrado?`, n: trim.venta },
+      prev && { q: `¿Cuánto vendimos en ${global.BipaInforme2.monthName(prev.mes)}?`, n: prev.venta },
+      k.dejaron_de_comprar != null && { q: `¿Cuántos clientes que compraban el mes anterior no compraron en ${mesTxt}?`, i: k.dejaron_de_comprar },
+      { q: `¿Cuántos clientes nuevos hubo en ${mesTxt}?`, i: k.clientes_nuevos },
+      info.datos_al && { q: "¿Cuál es la fecha de corte de los datos?", t: info.datos_al, alt: [info.datos_al.split("-").reverse().join("/")] },
+    ].filter(Boolean);
+  }
+
   function build(T) {
+    if (T.mode === "basico") return buildBasic(T);
     const info = T.run("info_datos", {});
     const ult = T.run("resumen_general", { periodo: "ultimo" });
     const act = T.run("resumen_general", { periodo: "actual" });

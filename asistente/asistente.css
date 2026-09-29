@@ -39,3 +39,6 @@
 .testBox{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .testTable td.ok{color:var(--good);font-weight:700}.testTable td.no{color:var(--bad);font-weight:700}
 .testTable td{vertical-align:top}
+.basicBar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.basicBar p{margin:0;font-size:13px;color:var(--muted);flex:1 1 320px}
+.chip[hidden]{display:none}

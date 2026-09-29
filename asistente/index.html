@@ -57,6 +57,11 @@
       <button id="settingsBtn" class="btn ghost small" type="button">Configuración</button>
     </div>
 
+    <div id="basicBar" class="basicBar" hidden>
+      <p>Trabajando con los datos del portal (por mes). La empresa de cada factura, las fechas por día y la antigüedad del saldo llegan con el paquete del informe 2.0.</p>
+      <label class="btn ghost small fileBtn">Cargar Excel para detalle completo<input id="xlsMore" type="file" accept=".xlsx"></label>
+    </div>
+
     <form id="settings" class="settings card" hidden>
       <h3>Configuración del asistente</h3>
       <div id="settingsForm" class="settingsGrid">
@@ -85,11 +90,13 @@
       <div class="chips">
         <button class="chip" type="button">¿Cómo nos fue el mes pasado y por qué?</button>
         <button class="chip" type="button">¿Cómo va este mes frente al anterior?</button>
-        <button class="chip" type="button">¿Qué productos de AREZ están cayendo?</button>
+        <button class="chip" type="button" data-full>¿Qué productos de AREZ están cayendo?</button>
+        <button class="chip" type="button" data-basic>¿Qué productos están cayendo?</button>
         <button class="chip" type="button">¿A qué clientes debería llamar esta semana?</button>
         <button class="chip" type="button">¿Quiénes deben más y siguen comprando?</button>
         <button class="chip" type="button">Compara a los vendedores</button>
-        <button class="chip" type="button">¿Qué productos se venden juntos?</button>
+        <button class="chip" type="button" data-full>¿Qué productos se venden juntos?</button>
+        <button class="chip" type="button" data-basic>¿Qué zona creció más este trimestre?</button>
         <button class="chip" type="button">¿Cómo actualizo los datos del portal?</button>
       </div>
     </div>
@@ -107,6 +114,7 @@
   <div id="toast" class="toast" hidden role="status"></div>
 
   <script src="../informe/datos.js"></script>
+  <script src="../informe/motor.js"></script>
   <script src="../informe/motor2.js"></script>
   <script src="./herramientas.js"></script>
   <script src="./contexto.js"></script>
