@@ -14,9 +14,9 @@
       document.documentElement.dataset.theme = dark ? "dark" : "light";
     } catch { document.documentElement.dataset.theme = "light"; }
   </script>
-  <script type="module" crossorigin src="../app/comparativo-DaocBVGp.js"></script>
+  <script type="module" crossorigin src="../app/comparativo-DrZRGXhf.js"></script>
   <link rel="modulepreload" crossorigin href="../app/charts-DHG-3D5Z.js">
-  <link rel="modulepreload" crossorigin href="../app/format-Bwh2UF0v.js">
+  <link rel="modulepreload" crossorigin href="../app/format-J9VUnCuy.js">
   <link rel="stylesheet" crossorigin href="../app/format-BuwOG7EF.css">
   <link rel="stylesheet" crossorigin href="../app/comparativo-oIDnu0LH.css">
 </head>
@@ -32,7 +32,6 @@
         <a href="#" data-nav="panorama"><span data-icon="dashboard"></span><span>Panorama</span></a>
         <a href="#puente" data-nav="puente"><span data-icon="users"></span><span>Puente de variación</span></a>
         <a href="#proyeccion" data-nav="proyeccion"><span data-icon="target"></span><span>Proyección</span></a>
-        <a href="#calidad" data-nav="calidad"><span data-icon="shield"></span><span>Calidad de datos</span></a>
         <span class="navLabel">Ir a</span>
         <a href="../"><span data-icon="calendar"></span><span>Cartera Inteligente</span></a>
         <a href="../informe/"><span data-icon="download"></span><span>Informe gerencial</span></a>
@@ -93,13 +92,9 @@
           </article>
           <article class="card flush"><div class="cardHead pad"><div><h3>Escenarios mes a mes</h3><p>Venta estimada de cada mes y cierre del año</p></div></div><div class="tableWrap" id="tablaProyeccion"></div></article>
           <article class="card flush"><div class="cardHead pad"><div><h3>Prueba de acierto</h3><p>Qué habría dicho el método en cada mes ya cerrado, usando solo lo que se sabía antes</p></div></div><div class="tableWrap" id="tablaBacktest"></div><p class="reading pad" id="backtestResumen"></p></article>
-          <article class="card notice"><h3>Producción estimada de parafina</h3><p>Pendiente: necesita los kilos de parafina por unidad de cada producto. Los kilos que traen hoy las facturas no son confiables (ver Calidad de datos), así que no se estima producción con ellos.</p></article>
+          <article class="card notice"><h3>Producción estimada de parafina</h3><p>Pendiente: necesita los kilos de parafina por unidad de cada producto. Los kilos que traen hoy las facturas no son confiables, así que no se estima producción con ellos.</p></article>
         </section>
 
-        <section class="view" data-view="calidad" hidden>
-          <div class="grid two" id="calidadLista"></div>
-          <article class="card flush"><div class="cardHead pad"><div><h3>Kilos frente a venta</h3><p>Si los kilos siguieran a la venta, los kilos por cada $1.000 vendidos serían parecidos entre años. Solo líneas con peso y hasta 10.000 kg</p></div></div><div class="tableWrap" id="tablaKg"></div></article>
-        </section>
       </main>
     </div>
   </div>
