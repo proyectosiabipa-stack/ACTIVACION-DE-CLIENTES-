@@ -157,6 +157,7 @@
     const mE = new Map(), mP = new Map(), mD = new Map();
     const L = { e: [], d: [], v: [], doc: [], c: [], p: [], u: [], pr: [], t: [], s: [], sv: [], kg: [] };
     let maxDay = 0, skipped = 0;
+    const control = { lines: 0, venta_cent: 0, saldo_cent: 0, vencido_cent: 0 }; // totales del Excel en centavos, para el cuadre
     for (const r of rows.slice(hi + 1)) {
       const cname = String(r[H.cliente] ?? "").trim(), prod = String(r[H.producto] ?? "").trim();
       const day = serialDay(r[H.emision]);
@@ -173,10 +174,13 @@
       L.s.push(H.saldo >= 0 ? round2(numOf(r[H.saldo])) : 0); L.sv.push(H.vencido >= 0 ? round2(numOf(r[H.vencido])) : 0);
       L.kg.push(H.peso >= 0 ? Math.round(numOf(r[H.peso]) * 1000) / 1000 : 0);
       if (day > maxDay) maxDay = day;
+      control.lines++; control.venta_cent += Math.round(numOf(r[H.total]) * 100);
+      if (H.saldo >= 0) control.saldo_cent += Math.round(numOf(r[H.saldo]) * 100);
+      if (H.vencido >= 0) control.vencido_cent += Math.round(numOf(r[H.vencido]) * 100);
     }
     if (!L.d.length) throw new Error("La hoja de facturación no trae líneas con fecha de emisión.");
     step(`Listo: ${L.d.length.toLocaleString("es-VE")} líneas, ${clients.length.toLocaleString("es-VE")} clientes.`);
-    return { v: 2, created_at: new Date().toISOString(), cut_day: maxDay, skipped, nsheet, clients, dict, lines: L };
+    return { v: 2, created_at: new Date().toISOString(), cut_day: maxDay, skipped, nsheet, control, clients, dict, lines: L };
   }
 
   /* ---------- Cifrado (mismo esquema del portal) ---------- */

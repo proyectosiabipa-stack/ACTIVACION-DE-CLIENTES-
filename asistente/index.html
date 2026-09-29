@@ -72,6 +72,10 @@
         </label>
         <p class="hint">En el plan gratuito de Gemini, Google puede usar lo que se le envía para mejorar sus productos.</p>
         <div class="actions"><button class="btn primary" type="submit">Guardar</button><button id="forgetKey" class="btn ghost" type="button">Borrar llave</button></div>
+        <div class="testBox">
+          <p class="hint"><b>Prueba de precisión:</b> el asistente responde 20 preguntas cuya respuesta correcta se calcula aquí mismo con sus datos, y se marca cada acierto. Tarda unos minutos porque respeta los límites del plan gratuito.</p>
+          <button id="testBtn" class="btn ghost" type="button">Probar precisión del agente</button>
+        </div>
       </div>
     </form>
 
@@ -106,6 +110,7 @@
   <script src="../informe/motor2.js"></script>
   <script src="./herramientas.js"></script>
   <script src="./contexto.js"></script>
+  <script src="./prueba.js"></script>
   <script src="./asistente.js"></script>
 </body>
 </html>

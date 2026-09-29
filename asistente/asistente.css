@@ -36,3 +36,6 @@
 .ask textarea:focus-visible{outline:none}
 .fine{margin:0;text-align:center;font-size:11.5px;color:var(--muted)}
 @media (max-width:480px){.welcome h2{font-size:20px}.top .back{display:none}}
+.testBox{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.testTable td.ok{color:var(--good);font-weight:700}.testTable td.no{color:var(--bad);font-weight:700}
+.testTable td{vertical-align:top}

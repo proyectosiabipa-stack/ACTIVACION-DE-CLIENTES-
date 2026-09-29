@@ -95,6 +95,7 @@
     $("#settingsBtn").addEventListener("click", () => openSettings(!$("#settings").hidden ? false : true));
     $("#settings").addEventListener("submit", (e) => { e.preventDefault(); saveSettings(); });
     $("#forgetKey").addEventListener("click", () => { store.del(K_GEMINI); $("#fKey").value = ""; toast("Llave borrada de este navegador."); });
+    $("#testBtn").addEventListener("click", runTest);
     $("#newChat").addEventListener("click", () => { HISTORY = []; $("#log").innerHTML = ""; $("#welcome").hidden = false; $("#askInput").focus(); });
     $("#askInput").focus();
   }
@@ -115,7 +116,7 @@
     return el;
   }
 
-  const TOOL_LABELS = { info_datos: "datos disponibles", resumen_general: "resumen general", ventas_por: "ventas", serie_mensual: "serie mensual", listas: "listas", buscar_cliente: "ficha de cliente", buscar_producto: "ficha de producto" };
+  const TOOL_LABELS = { info_datos: "datos disponibles", resumen_general: "resumen general", ventas_por: "ventas", serie_mensual: "serie mensual", listas: "listas", buscar_cliente: "ficha de cliente", buscar_producto: "ficha de producto", consulta: "consulta a medida", cuadre: "cuadre con el Excel" };
 
   async function ask(text) {
     text = String(text || "").trim();
@@ -126,24 +127,9 @@
     addMsg("user", esc(text));
     const pending = addMsg("bot", `<span class="typing">Consultando los datos…</span>`);
     const base = HISTORY.length;
-    HISTORY.push({ role: "user", parts: [{ text }] });
-    const used = [];
     try {
-      let answer = "";
-      for (let round = 0; round < MAX_ROUNDS; round++) {
-        const content = await callGemini(key);
-        HISTORY.push(content);
-        const calls = (content.parts || []).filter((p) => p.functionCall);
-        if (!calls.length) { answer = (content.parts || []).filter((p) => p.text && !p.thought).map((p) => p.text).join("").trim(); break; }
-        const responses = calls.map((p) => {
-          const fc = p.functionCall;
-          used.push(TOOL_LABELS[fc.name] || fc.name);
-          pending.querySelector(".typing").textContent = `Consultando ${TOOL_LABELS[fc.name] || fc.name}…`;
-          const result = TOOLS.run(fc.name, fc.args);
-          return { functionResponse: { name: fc.name, ...(fc.id ? { id: fc.id } : {}), response: { result } } };
-        });
-        HISTORY.push({ role: "user", parts: responses });
-      }
+      const { answer: raw, used } = await agentTurn(HISTORY, text, key, (label) => { pending.querySelector(".typing").textContent = `Consultando ${label}…`; });
+      let answer = raw;
       if (!answer) answer = "No logré completar la respuesta con los datos. Intente con una pregunta más concreta.";
       const tags = [...new Set(used)];
       pending.querySelector(".bubble").innerHTML = render(answer);
@@ -159,7 +145,61 @@
     }
   }
 
-  async function callGemini(key) {
+  /* ---------- Prueba de precisión ---------- */
+  let TESTING = false;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function runTest() {
+    if (TESTING) { TESTING = false; return; }
+    const key = store.get(K_GEMINI);
+    if (!key) { toast("Primero pegue su llave de Gemini.", true); return; }
+    if (BUSY) return;
+    TESTING = true; BUSY = true; $("#askBtn").disabled = true;
+    $("#testBtn").textContent = "Detener prueba"; openSettings(false);
+    const tests = BipaPrueba.build(TOOLS);
+    const box = addMsg("bot", `<p class="h">Prueba de precisión</p><p class="typing">Preparando ${tests.length} preguntas…</p><div class="tw"><table class="testTable"><tr><th>#</th><th>Pregunta</th><th>Correcto</th><th>Respondió</th><th></th></tr></table></div>`);
+    const table = box.querySelector("table"), status = box.querySelector(".typing");
+    let ok = 0, exact = 0, done = 0;
+    for (let i = 0; i < tests.length && TESTING; i++) {
+      const t = tests[i];
+      status.textContent = `Pregunta ${i + 1} de ${tests.length}…`;
+      let answer = "", used = [], err = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try { ({ answer, used } = await agentTurn([], t.q, key)); err = null; break; }
+        catch (e) { err = e; if (/límite/.test(e.userMessage || "") && attempt === 0) { status.textContent = "Límite gratuito alcanzado; esperando 40 segundos…"; await sleep(40000); } else break; }
+      }
+      const r = err ? { ok: false, expected: BipaPrueba.check("", t).expected } : BipaPrueba.check(answer, t);
+      done++; if (r.ok) ok++; if (r.ok && r.level === "exacto") exact++;
+      const shown = err ? `Error: ${err.userMessage || err.message}` : answer.replace(/\s+/g, " ").slice(0, 220);
+      table.insertAdjacentHTML("beforeend", `<tr><td>${i + 1}</td><td>${esc(t.q)}</td><td>${esc(r.expected)}</td><td>${esc(shown)}${used.length ? `<br><small class="muted">${esc([...new Set(used)].join(" · "))}</small>` : ""}</td><td class="${r.ok ? "ok" : "no"}">${r.ok ? (r.level === "redondeado" ? "≈" : "✓") : "✗"}</td></tr>`);
+      if (i < tests.length - 1 && TESTING) await sleep(6000);
+    }
+    status.className = "";
+    status.innerHTML = `<b>Resultado: ${ok} de ${done} correctas</b> (${exact} exactas al centavo${ok - exact ? `, ${ok - exact} redondeadas` : ""}). ✓ exacta · ≈ redondeada · ✗ incorrecta.`;
+    TESTING = false; BUSY = false; $("#askBtn").disabled = false; $("#testBtn").textContent = "Probar precisión del agente";
+  }
+
+  // Un turno completo del agente: pregunta, llamadas a herramientas y respuesta final.
+  // Modifica "history" (agrega la pregunta, las llamadas y la respuesta).
+  async function agentTurn(history, text, key, onTool) {
+    history.push({ role: "user", parts: [{ text }] });
+    const used = [];
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const content = await callGemini(key, history);
+      history.push(content);
+      const calls = (content.parts || []).filter((p) => p.functionCall);
+      if (!calls.length) return { answer: (content.parts || []).filter((p) => p.text && !p.thought).map((p) => p.text).join("").trim(), used };
+      const responses = calls.map((p) => {
+        const fc = p.functionCall, label = TOOL_LABELS[fc.name] || fc.name;
+        used.push(label); if (onTool) onTool(label);
+        const result = TOOLS.run(fc.name, fc.args);
+        return { functionResponse: { name: fc.name, ...(fc.id ? { id: fc.id } : {}), response: { result } } };
+      });
+      history.push({ role: "user", parts: responses });
+    }
+    return { answer: "", used };
+  }
+
+  async function callGemini(key, history) {
     const info = BipaInforme2.describe(DS);
     const system = BipaContexto({
       empresas: info.empresas, cut: info.cut.toISOString().slice(0, 10), first: BipaInforme2.dayToDate(info.minDay).toISOString().slice(0, 10),
@@ -171,7 +211,7 @@
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
-        contents: HISTORY,
+        contents: history,
         tools: [{ functionDeclarations: TOOLS.declarations }],
         toolConfig: { functionCallingConfig: { mode: "AUTO" } },
         generationConfig: { temperature: 0.2 },

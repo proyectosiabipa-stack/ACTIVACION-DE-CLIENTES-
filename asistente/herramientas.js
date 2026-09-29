@@ -220,6 +220,120 @@
           };
         },
       },
+      consulta: {
+        description: "Consulta flexible sobre las líneas de factura, exacta al centavo. Filtra por fechas exactas (día o mes), empresa, vendedor, zona, tipo de cliente, cliente y producto (nombres parciales), y agrupa por hasta dos dimensiones: empresa, producto, cliente, vendedor, zona, tipo_cliente, mes, semana, dia o factura. Devuelve venta, unidades, kg, facturas, clientes, líneas, precio promedio, saldo y vencido. Úsela para cualquier cruce que las otras herramientas no cubran (ej. venta de un producto a un cliente en ciertas fechas, venta por tipo de cliente, facturas de un día).",
+        parameters: {
+          type: "object",
+          properties: {
+            desde: { type: "string", description: "Fecha inicial AAAA-MM-DD o mes AAAA-MM (incluida). Vacío = desde el inicio." },
+            hasta: { type: "string", description: "Fecha final AAAA-MM-DD o mes AAAA-MM (incluida). Vacío = hasta la fecha de corte." },
+            empresa: { type: "string" }, vendedor: { type: "string" }, zona: { type: "string" }, tipo_cliente: { type: "string" },
+            cliente: { type: "string", description: "Nombre o parte del nombre; si coincide con varios clientes se devuelven las opciones." },
+            producto: { type: "string", description: "Nombre o parte del nombre; incluye todos los productos que contengan esas palabras (ej. 'velon blanco')." },
+            agrupar_por: { type: "array", items: { type: "string", enum: ["empresa", "producto", "cliente", "vendedor", "zona", "tipo_cliente", "mes", "semana", "dia", "factura"] }, description: "Cero, una o dos dimensiones." },
+            orden: { type: "string", enum: ["venta", "unidades", "kg", "facturas", "clientes", "vencido", "nombre"], description: "Por defecto venta de mayor a menor (nombre y fechas en orden ascendente)." },
+            limite: { type: "integer", description: "Máximo de grupos (por defecto 25, máximo 200)." },
+            excluir_fletes: { type: "boolean", description: "Excluir las líneas de FLETE. Por defecto se incluyen, igual que en la venta total." },
+          },
+        },
+        run(a) {
+          const ds = getDS(), L = ds.lines, D = ds.dict, CL = ds.clients, I = info(), BI = global.BipaInforme2;
+          const toDay = (s, end) => {
+            if (!s) return null;
+            const m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(String(s).trim());
+            if (!m) return NaN;
+            const y = +m[1], mo = +m[2] - 1;
+            const d = m[3] ? Date.UTC(y, mo, +m[3]) : end ? Date.UTC(y, mo + 1, 0) : Date.UTC(y, mo, 1);
+            return Math.round((d - Date.UTC(1899, 11, 30)) / 86400000);
+          };
+          const from = toDay(a.desde, false), to = toDay(a.hasta, true);
+          if (Number.isNaN(from) || Number.isNaN(to)) return { error: "Use fechas en formato AAAA-MM-DD o AAAA-MM." };
+          const errors = [];
+          const pick = (list, q, label) => { if (!q) return null; const v = match(list, q); if (!v) errors.push(`No encontré ${label} "${q}".`); return v; };
+          const emp = pick(I.empresas, a.empresa, "la empresa"), sel = pick(I.sellers, a.vendedor, "el vendedor"), zon = pick(I.zones, a.zona, "la zona"), typ = pick(I.types, a.tipo_cliente, "el tipo de cliente");
+          if (errors.length) return { error: errors.join(" ") };
+          let cliSet = null;
+          if (a.cliente) {
+            if (priv() === "cifras") return { error: "Modo solo cifras: no se filtra por nombre de cliente." };
+            const found = search(CL.map((c) => c[0]), a.cliente, 8);
+            if (!found.length) return { error: `No encontré clientes con "${a.cliente}".` };
+            const exact = found.find((f) => norm(f.name) === norm(a.cliente));
+            if (!exact && found.length > 1) return { varios_resultados: found.map((f) => ({ cliente: CL[f.i][0], zona: CL[f.i][2], vendedor: CL[f.i][4] })), nota: "Pida al usuario que elija uno o use el nombre completo." };
+            cliSet = new Set([(exact || found[0]).i]);
+          }
+          let prodSet = null, prodNames = null;
+          if (a.producto) {
+            const tokens = norm(a.producto).split(" ").filter(Boolean);
+            const idx = D.productos.map((p, i) => [norm(p), i]).filter(([v]) => tokens.every((t) => v.includes(t))).map(([, i]) => i);
+            if (!idx.length) return { error: `No encontré productos con "${a.producto}".` };
+            prodSet = new Set(idx); prodNames = idx.map((i) => D.productos[i]);
+          }
+          const ei = emp ? D.empresas.indexOf(emp) : -1;
+          const freight = new Set(D.productos.map((p, i) => (/^\s*FLETE/i.test(p) ? i : -1)).filter((i) => i >= 0));
+          const dims = (a.agrupar_por || []).slice(0, 2);
+          if (priv() === "cifras" && dims.some((d) => d === "cliente" || d === "factura")) return { error: "Modo solo cifras: no se agrupa por cliente ni por factura." };
+          const keyOf = (dim, i) => {
+            const c = L.c[i], d = L.d[i];
+            switch (dim) {
+              case "empresa": return D.empresas[L.e[i]];
+              case "producto": return D.productos[L.p[i]];
+              case "cliente": return CL[c][0];
+              case "vendedor": return CL[c][4];
+              case "zona": return CL[c][2];
+              case "tipo_cliente": return CL[c][3];
+              case "mes": return monthOf(d);
+              case "dia": return iso(BI.dayToDate(d));
+              case "semana": { const x = BI.dayToDate(d - ((BI.dayToDate(d).getUTCDay() + 6) % 7)); return `semana del ${iso(x)}`; }
+              case "factura": return `${D.empresas[L.e[i]]} ${D.docs[L.doc[i]]}`;
+              default: return "";
+            }
+          };
+          const acc = () => ({ v: 0, u: 0, kg: 0, s: 0, sv: 0, lines: 0, docs: new Set(), cl: new Set(), first: Infinity, last: 0, clientName: null });
+          const total = acc(), groups = new Map();
+          for (let i = 0; i < L.d.length; i++) {
+            const d = L.d[i], c = L.c[i], r = CL[c];
+            if (from != null && d < from) continue; if (to != null && d > to) continue;
+            if (ei >= 0 && L.e[i] !== ei) continue;
+            if (sel && r[4] !== sel) continue; if (zon && r[2] !== zon) continue; if (typ && r[3] !== typ) continue;
+            if (cliSet && !cliSet.has(c)) continue; if (prodSet && !prodSet.has(L.p[i])) continue;
+            if (a.excluir_fletes && freight.has(L.p[i])) continue;
+            const targets = [total];
+            if (dims.length) { const k = dims.map((dim) => keyOf(dim, i)).join(" | "); let g = groups.get(k); if (!g) { g = acc(); groups.set(k, g); if (dims.includes("factura")) g.clientName = r[0]; } targets.push(g); }
+            for (const g of targets) {
+              g.v += Math.round(L.t[i] * 100); g.u += L.u[i]; g.kg += L.kg[i]; g.s += Math.round(L.s[i] * 100);
+              if (L.v[i] < I.cutDay) g.sv += Math.round(L.s[i] * 100);
+              g.lines++; g.docs.add(L.e[i] * 1e7 + L.doc[i]); g.cl.add(c); if (d < g.first) g.first = d; if (d > g.last) g.last = d;
+            }
+          }
+          const out = (g) => ({ venta: g.v / 100, unidades: r2(g.u), kg: r2(g.kg), facturas: g.docs.size, clientes: g.cl.size, lineas: g.lines, precio_promedio: g.u ? r2(g.v / 100 / g.u) : null, saldo_actual: g.s / 100, vencido_actual: g.sv / 100, primera_fecha: g.lines ? iso(BI.dayToDate(g.first)) : null, ultima_fecha: g.lines ? iso(BI.dayToDate(g.last)) : null });
+          let rows = [...groups].map(([k, g]) => ({ grupo: k, ...(g.clientName && priv() !== "cifras" ? { cliente: g.clientName } : {}), ...out(g) }));
+          const ord = a.orden || (dims.some((x) => ["mes", "semana", "dia"].includes(x)) ? "nombre" : "venta");
+          const keyMap = { venta: "venta", unidades: "unidades", kg: "kg", facturas: "facturas", clientes: "clientes", vencido: "vencido_actual" };
+          rows.sort(ord === "nombre" ? (x, y) => x.grupo.localeCompare(y.grupo, "es") : (x, y) => y[keyMap[ord]] - x[keyMap[ord]]);
+          const lim = clamp(a.limite || 25, 1, 200);
+          return {
+            datos_al: iso(I.cut), desde: from != null ? iso(BI.dayToDate(from)) : iso(BI.dayToDate(I.minDay)), hasta: to != null ? iso(BI.dayToDate(Math.min(to, I.cutDay))) : iso(I.cut),
+            filtros: { empresa: emp, vendedor: sel, zona: zon, tipo_cliente: typ, cliente: cliSet ? CL[[...cliSet][0]][0] : null, productos_incluidos: prodNames ? (prodNames.length > 15 ? `${prodNames.length} productos (${prodNames.slice(0, 15).join(", ")}…)` : prodNames) : null, fletes: a.excluir_fletes ? "excluidos" : "incluidos" },
+            nota: "Venta exacta al centavo (suma de TOTAL VENTA de cada línea). Saldo y vencido son el estado actual de esas facturas a la fecha de corte.",
+            total: out(total), agrupado_por: dims.length ? dims : null, total_grupos: rows.length, grupos: dims.length ? rows.slice(0, lim) : undefined,
+          };
+        },
+      },
+      cuadre: {
+        description: "Cuadre de los datos contra el Excel de facturación original: compara el total de venta, saldo y vencido que trae el Excel con lo que el sistema tiene cargado, al centavo, e indica líneas omitidas. Úsela si el usuario duda de una cifra o pregunta si los datos cuadran.",
+        parameters: { type: "object", properties: {} },
+        run() {
+          const ds = getDS(), L = ds.lines, I = info();
+          let v = 0, s = 0, sv = 0, sv2 = 0;
+          for (let i = 0; i < L.d.length; i++) { v += Math.round(L.t[i] * 100); s += Math.round(L.s[i] * 100); sv += Math.round(L.sv[i] * 100); if (L.v[i] < I.cutDay) sv2 += Math.round(L.s[i] * 100); }
+          const c = ds.control;
+          const res = { datos_al: iso(I.cut), paquete_creado: ds.created_at || null, lineas_cargadas: L.d.length, filas_omitidas_del_excel: ds.skipped || 0, venta_cargada: v / 100, saldo_cargado: s / 100, vencido_segun_columna_saldo_vencido: sv / 100, vencido_segun_fecha_de_vencimiento: sv2 / 100 };
+          if (c) Object.assign(res, { venta_excel: c.venta_cent / 100, saldo_excel: c.saldo_cent / 100, vencido_excel: c.vencido_cent / 100, diferencia_venta: (v - c.venta_cent) / 100, diferencia_saldo: (s - c.saldo_cent) / 100, diferencia_vencido: (sv - c.vencido_cent) / 100, cuadra: v === c.venta_cent && s === c.saldo_cent && sv === c.vencido_cent && c.lines === L.d.length });
+          else res.nota = "Este paquete se creó antes del control de cuadre; vuelva a cargar el Excel para obtener el cuadre completo.";
+          res.aclaracion = "Las filas omitidas son filas del Excel sin cliente, producto o fecha de emisión válida.";
+          return res;
+        },
+      },
     };
 
     function filterProps(noPeriod) {

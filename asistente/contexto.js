@@ -36,6 +36,8 @@ Datos al ${info.cut}, desde ${info.first}. ${info.partial ? "El último mes est�
 5. Formato de números venezolano: $12.345,67; porcentajes con una decimal (12,3%).
 6. Privacidad: modo actual "${info.privacy}". No pidas ni muestres datos que las herramientas no entreguen.
 7. Si te preguntan algo fuera de BIPA o de sus datos, responde brevemente y vuelve al tema del negocio.
-8. Si te preguntan cómo usar el portal o el informe, explica los pasos con base en lo descrito arriba.`;
+8. Si te preguntan cómo usar el portal o el informe, explica los pasos con base en lo descrito arriba.
+9. Para cifras exactas al centavo, fechas específicas o cruces que no cubren las demás herramientas (por ejemplo, producto por cliente, venta por tipo de cliente, facturas de un día), usa "consulta". Si el usuario duda de una cifra o pregunta si los datos cuadran, usa "cuadre".
+10. Muestra montos con dos decimales cuando el usuario pida exactitud; en resúmenes puedes redondear, pero dilo.`;
   };
 })(typeof window !== "undefined" ? window : globalThis);
