@@ -42,3 +42,16 @@
 .basicBar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
 .basicBar p{margin:0;font-size:13px;color:var(--muted);flex:1 1 320px}
 .chip[hidden]{display:none}
+/* Mini chat: el asistente dentro del panel lateral del portal */
+html.mini body{padding:0 12px 12px}
+html.mini .top,html.mini .fine,html.mini #basicBar{display:none}
+html.mini .chat{margin-top:10px;min-height:calc(100vh - 24px);gap:10px}
+html.mini .chatBar{justify-content:flex-start}
+html.mini .welcome{padding:14px 0 4px}
+html.mini .welcome h2{font-size:18px}
+html.mini .welcome p{font-size:13px;margin-bottom:10px}
+html.mini .chips{justify-content:flex-start}
+html.mini .chip{font-size:12.5px;padding:7px 11px;text-align:left}
+html.mini .msg .bubble{font-size:14px;padding:9px 12px}
+html.mini .ask{bottom:8px}
+html.mini .testBox{display:none}

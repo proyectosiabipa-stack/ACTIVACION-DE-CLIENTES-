@@ -45,6 +45,30 @@
   }
 
   let DS = null, DATA1 = null, TOOLS = null, HISTORY = [], BUSY = false, BOUND = false;
+
+  /* ---------- Mini chat dentro del portal ----------
+     Con ?mini=1 el asistente vive en el panel lateral del portal, que le cuenta qué
+     vista, filtros y cliente está mirando el usuario (mensaje "bipa-context"). */
+  const MINI = new URLSearchParams(location.search).has("mini");
+  if (MINI) {
+    document.documentElement.classList.add("mini");
+    const input = document.querySelector("#askInput");
+    if (input) input.placeholder = "Pregunte sobre lo que está viendo…";
+  }
+  let VIEW = null;
+  window.addEventListener("message", (ev) => {
+    if (ev.origin !== location.origin || !ev.data || ev.data.type !== "bipa-context") return;
+    VIEW = ev.data.context || null;
+    if (MINI) renderMiniChips();
+  });
+  function renderMiniChips() {
+    const box = document.querySelector("#welcome .chips");
+    if (!box || !VIEW) return;
+    const list = BipaContexto.sugerencias(VIEW, privacy(), !!DS);
+    box.innerHTML = list.map((q) => `<button class="chip" type="button">${esc(q)}</button>`).join("");
+    const title = document.querySelector("#welcome h2");
+    if (title) title.textContent = VIEW.client && privacy() !== "cifras" ? VIEW.client.cliente : VIEW.viewName;
+  }
   const privacy = () => store.get(K_PRIV) || "nombres";
 
   async function start() {
@@ -115,7 +139,8 @@
     if (!store.get(K_GEMINI)) openSettings(true);
     $("#askForm").addEventListener("submit", (e) => { e.preventDefault(); ask($("#askInput").value); });
     $("#askInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask($("#askInput").value); } });
-    document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => ask(c.textContent)));
+    document.querySelector("#welcome .chips").addEventListener("click", (e) => { const c = e.target.closest(".chip"); if (c) ask(c.textContent); });
+    if (MINI) renderMiniChips();
     $("#settingsBtn").addEventListener("click", () => openSettings(!$("#settings").hidden ? false : true));
     $("#settings").addEventListener("submit", (e) => { e.preventDefault(); saveSettings(); });
     $("#forgetKey").addEventListener("click", () => { store.del(K_GEMINI); $("#fKey").value = ""; toast("Llave borrada de este navegador."); });
@@ -261,7 +286,7 @@
     }
   }
   async function callGeminiOnce(key, history, model) {
-    const system = BipaContexto(context());
+    const system = BipaContexto(context()) + (VIEW ? BipaContexto.vista(VIEW, privacy()) : "");
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },

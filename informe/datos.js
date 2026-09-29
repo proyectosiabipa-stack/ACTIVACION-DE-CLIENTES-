@@ -109,8 +109,9 @@
     return idx;
   }
 
-  async function buildFromExcel(buffer, onStep) {
+  async function buildFromExcel(buffer, onStep, opts) {
     const step = onStep || (() => {});
+    const minDay = (opts && opts.minDay) || 0; // recorta facturas anteriores a este día (serie de Excel)
     step("Abriendo el Excel…");
     const wb = await readWorkbook(buffer);
     const factName = wb.names.find((n) => norm(n).startsWith("FACTURACION"));
@@ -162,6 +163,7 @@
       const cname = String(r[H.cliente] ?? "").trim(), prod = String(r[H.producto] ?? "").trim();
       const day = serialDay(r[H.emision]);
       if (!cname || !prod || !day) { if (r.some((x) => x !== undefined && x !== "")) skipped++; continue; }
+      if (day < minDay) continue;
       let ci = byName.get(norm(cname));
       if (ci === undefined) { ci = clients.length; byName.set(norm(cname), ci); clients.push([cname, "", "Sin zona", "Sin tipo", "Sin vendedor", "", 0]); }
       const pi = idxOf(dict.productos, mP, prod);

@@ -48,4 +48,37 @@ ${datos}
 ${regla9}
 10. Muestra montos con dos decimales cuando el usuario pida exactitud; en resúmenes puedes redondear, pero dilo.`;
   };
+
+  const quien = (c, priv) => (c && priv !== "cifras" ? c.cliente : "este cliente");
+
+  // Lo que el usuario está viendo en el portal cuando pregunta desde el mini chat.
+  global.BipaContexto.vista = function (v, priv) {
+    const partes = [`- Vista abierta: ${v.viewName}.`];
+    if (v.filters && v.filters.length) partes.push(`- Filtros activos: ${v.filters.join("; ")}.`);
+    if (v.months && v.months.length) partes.push(`- Meses elegidos: ${v.months.join(", ")}.`);
+    if (v.articleSearch) partes.push(`- Búsqueda de artículos: ${v.articleSearch}.`);
+    if (v.client) partes.push(priv === "cifras" ? `- Tiene abierta la ficha del cliente con código ${v.client.codigo}.` : `- Tiene abierta la ficha del cliente ${v.client.cliente} (código ${v.client.codigo}, vendedor ${v.client.vendedor || "sin asignar"}, zona ${v.client.zona || "sin zona"}).`);
+    return `
+
+## Lo que el usuario está viendo ahora (mini chat del portal)
+${partes.join("\n")}
+Cuando la pregunta diga "esto", "este cliente", "estos filtros" o "lo que estoy viendo", se refiere a lo de arriba: aplica esos filtros, meses o cliente en las herramientas. Responde más corto que en la vista completa: 3 a 6 líneas y, si hace falta, una tabla de hasta 5 filas.`;
+  };
+
+  // Preguntas sugeridas en el mini chat según la vista abierta.
+  global.BipaContexto.sugerencias = function (v, priv, completo) {
+    if (v.client) {
+      const c = quien(v.client, priv);
+      return [`Resume la situación de ${c}`, `¿Qué le ofrecería a ${c}?`, completo ? `¿Cuánto debe ${c} y desde cuándo?` : `¿Cuánto debe ${c}?`, `¿Cómo ha comprado ${c} mes a mes?`];
+    }
+    const filtros = v.filters && v.filters.length;
+    switch (v.view) {
+      case "send": return ["¿Qué vendedor tiene más clientes por activar?", "¿A cuáles clientes debería llamar primero esta semana?", "Redacta un mensaje de WhatsApp para el vendedor con más pendientes"];
+      case "final": return [v.months && v.months.length ? "Explícame el resultado de los meses elegidos" : "Explícame cómo nos fue en el periodo", "¿Qué vendedor y zona explican la variación?", "Compara con el periodo anterior"];
+      case "articles": return ["¿Qué productos están cayendo?", "¿Qué productos crecen más?", "¿Qué artículos concentran la venta (ABC)?"];
+      default: return filtros
+        ? ["Resume lo que estoy viendo con estos filtros", "¿A qué clientes de este filtro debería llamar primero?", "¿Quiénes deben más en este filtro?"]
+        : ["¿Cómo va este mes frente al anterior?", "¿A qué clientes debería llamar esta semana?", "¿Quiénes deben más y siguen comprando?"];
+    }
+  };
 })(typeof window !== "undefined" ? window : globalThis);

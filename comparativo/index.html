@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1a13">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Comparativo 2025 vs 2026 · BIPA</title>
+  <link rel="icon" href="../logo.svg" type="image/svg+xml">
+  <script>
+    try {
+      const saved = localStorage.getItem("bipa:theme");
+      const dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    } catch { document.documentElement.dataset.theme = "light"; }
+  </script>
+  <script type="module" crossorigin src="../app/comparativo-CeJR7-YF.js"></script>
+  <link rel="modulepreload" crossorigin href="../app/charts-DHG-3D5Z.js">
+  <link rel="modulepreload" crossorigin href="../app/format-vou8onlI.js">
+  <link rel="stylesheet" crossorigin href="../app/format-D7Yu0mDO.css">
+  <link rel="stylesheet" crossorigin href="../app/comparativo-oIDnu0LH.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <a class="brand" href="#" data-nav="panorama">
+        <span class="brandMark"><img src="../logo.svg" alt=""></span>
+        <span class="brandText"><strong>BIPA</strong><small>Comparativo 2025 vs 2026</small></span>
+      </a>
+      <nav class="nav">
+        <span class="navLabel">Comparar</span>
+        <a href="#" data-nav="panorama"><span data-icon="dashboard"></span><span>Panorama</span></a>
+        <a href="#puente" data-nav="puente"><span data-icon="users"></span><span>Puente de variación</span></a>
+        <a href="#proyeccion" data-nav="proyeccion"><span data-icon="target"></span><span>Proyección</span></a>
+        <a href="#calidad" data-nav="calidad"><span data-icon="shield"></span><span>Calidad de datos</span></a>
+        <span class="navLabel">Ir a</span>
+        <a href="../"><span data-icon="calendar"></span><span>Cartera Inteligente</span></a>
+        <a href="../informe/"><span data-icon="download"></span><span>Informe gerencial</span></a>
+        <a href="../asistente/"><span data-icon="send"></span><span>Pregúntale a BIPA (IA)</span></a>
+      </nav>
+      <div class="sideFoot">
+        <div class="statusCard" id="statusCard">
+          <div class="statusLine"><i class="dot"></i><strong id="statusLabel">Cargando…</strong></div>
+          <small id="statusDetail">Abriendo el paquete de datos</small>
+          <small class="period" id="periodText"></small>
+        </div>
+        <div class="sideActions">
+          <button class="iconButton" type="button" id="themeBtn" data-tip="Cambiar tema claro / oscuro"><span data-icon="moon"></span></button>
+          <button class="iconButton" type="button" id="lockBtn" data-tip="Bloquear: volver a pedir la clave en este dispositivo"><span data-icon="lock"></span></button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="topTitle">
+          <a class="mobileBrand" href="#" data-nav="panorama"><img src="../logo.svg" alt="BIPA"></a>
+          <div>
+            <h1 id="viewTitle">Panorama</h1>
+            <p id="viewSubtitle">Cómo vamos frente al mismo periodo del año pasado</p>
+          </div>
+        </div>
+        <div class="topActions">
+          <button class="iconButton mobileOnly" type="button" id="themeBtnMobile" aria-label="Cambiar tema"><span data-icon="moon"></span></button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="view" data-view="panorama">
+          <div class="kpiGrid" id="panoramaKpis"></div>
+          <article class="card insight" id="panoramaInsight"></article>
+          <div class="grid two">
+            <article class="card"><div class="cardHead"><div><h3>Venta por mes</h3><p>Los dos años, mes contra mes; el mes en curso llega hasta el mismo día del año pasado</p></div></div><div class="chart" id="chartMensual"></div></article>
+            <article class="card"><div class="cardHead"><div><h3>Venta acumulada</h3><p>Cuánto llevamos vendido en el año frente al año pasado</p></div></div><div class="chart" id="chartAcum"></div></article>
+          </div>
+          <article class="card flush"><div class="cardHead pad"><div><h3>Por empresa</h3><p>Mismo periodo de cada año</p></div></div><div class="tableWrap" id="tablaEmpresas"></div></article>
+        </section>
+
+        <section class="view" data-view="puente" hidden>
+          <article class="card">
+            <div class="cardHead"><div><h3>Puente de variación de la venta</h3><p>Suma de la diferencia de cada cliente, en el mismo periodo de los dos años</p></div></div>
+            <div class="chart" id="chartPuente"></div>
+            <div class="reading" id="puenteResumen"></div>
+          </article>
+          <div class="grid two" id="puenteListas"></div>
+        </section>
+
+        <section class="view" data-view="proyeccion" hidden>
+          <article class="card">
+            <div class="cardHead"><div><h3>Ventas hasta diciembre</h3><p>Real, escenario base y rango entre el conservador y el optimista</p></div></div>
+            <div class="chart" id="chartProyeccion"></div>
+            <div class="reading" id="proyeccionResumen"></div>
+          </article>
+          <article class="card flush"><div class="cardHead pad"><div><h3>Escenarios mes a mes</h3><p>Venta estimada de cada mes y cierre del año</p></div></div><div class="tableWrap" id="tablaProyeccion"></div></article>
+          <article class="card flush"><div class="cardHead pad"><div><h3>Prueba de acierto</h3><p>Qué habría dicho el método en cada mes ya cerrado, usando solo lo que se sabía antes</p></div></div><div class="tableWrap" id="tablaBacktest"></div><p class="reading pad" id="backtestResumen"></p></article>
+          <article class="card notice"><h3>Producción estimada de parafina</h3><p>Pendiente: necesita los kilos de parafina por unidad de cada producto. Los kilos que traen hoy las facturas no son confiables (ver Calidad de datos), así que no se estima producción con ellos.</p></article>
+        </section>
+
+        <section class="view" data-view="calidad" hidden>
+          <div class="grid two" id="calidadLista"></div>
+          <article class="card flush"><div class="cardHead pad"><div><h3>Kilos frente a venta</h3><p>Si los kilos siguieran a la venta, los kilos por cada $1.000 vendidos serían parecidos entre años. Solo líneas con peso y hasta 10.000 kg</p></div></div><div class="tableWrap" id="tablaKg"></div></article>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div id="toasts" aria-live="polite"></div>
+</body>
+</html>
