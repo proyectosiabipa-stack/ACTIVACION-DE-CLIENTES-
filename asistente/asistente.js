@@ -127,6 +127,7 @@
   function openSettings(show) { $("#settings").hidden = !show; if (show) $("#fKey").focus(); }
   function saveSettings() {
     const k = $("#fKey").value.trim(), m = $("#fModel").value.trim() || DEFAULT_MODEL;
+    ACTIVE_MODEL = null;
     if (k) store.set(K_GEMINI, k); store.set(K_MODEL, m); store.set(K_PRIV, $("#fPriv").value);
     openSettings(false); toast(k ? "Configuración guardada." : "Falta la llave de Gemini.", !k);
   }
@@ -240,21 +241,27 @@
 
   // Gemini gratuito a veces responde "alta demanda" (503) o falla por un momento:
   // se reintenta solo, con esperas crecientes, antes de mostrar el error.
-  const RETRY_WAITS = [3000, 8000, 15000];
+  // Si el modelo elegido sigue saturado, se prueba con otros modelos gratuitos de Gemini.
+  const BACKUP_MODELS = ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
+  const RETRY_WAITS = [2000, 3000, 5000, 8000];
+  let ACTIVE_MODEL = null; // modelo que respondió la última vez en esta sesión
   const busy = (res, msg) => res.status === 500 || res.status === 503 || /high demand|overloaded|unavailable/i.test(msg || "");
   async function callGemini(key, history, note) {
     for (let i = 0; ; i++) {
-      try { return await callGeminiOnce(key, history); }
+      const chosen = store.get(K_MODEL) || DEFAULT_MODEL;
+      const chain = [...new Set([ACTIVE_MODEL || chosen, chosen, ...BACKUP_MODELS])];
+      const model = chain[i % chain.length];
+      try { const out = await callGeminiOnce(key, history, model); ACTIVE_MODEL = model; return out; }
       catch (e) {
-        if (!e.retry || i >= RETRY_WAITS.length) throw e;
-        if (note) note(`Gemini está ocupado; reintentando (${i + 1} de ${RETRY_WAITS.length})…`);
+        const skip = e.status === 404 && model !== chosen; // modelo de respaldo no disponible
+        if (!(e.retry || skip) || i >= RETRY_WAITS.length) throw e;
+        if (note) note(`Gemini está ocupado; probando con ${chain[(i + 1) % chain.length]}…`);
         await sleep(RETRY_WAITS[i]);
       }
     }
   }
-  async function callGeminiOnce(key, history) {
+  async function callGeminiOnce(key, history, model) {
     const system = BipaContexto(context());
-    const model = store.get(K_MODEL) || DEFAULT_MODEL;
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
@@ -271,7 +278,7 @@
     if (!res.ok) {
       const msg = body && body.error && body.error.message ? body.error.message : `HTTP ${res.status}`;
       const e = new Error(msg);
-      e.retry = busy(res, msg);
+      e.retry = busy(res, msg); e.status = res.status;
       e.userMessage = e.retry ? "Gemini está saturado en este momento (plan gratuito). Espere un minuto y vuelva a enviar la pregunta."
         : res.status === 429 ? "Se alcanzó el límite gratuito de Gemini por ahora. Espere un minuto e intente de nuevo."
         : res.status === 400 && /API key/i.test(msg) ? "La llave de Gemini no es válida. Revísela en Configuración."
