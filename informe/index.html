@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0b1a13">
+  <title>Informe gerencial · BIPA Cartera Inteligente</title>
+  <link rel="icon" href="../logo.svg" type="image/svg+xml">
+  <script>
+    try {
+      const saved = localStorage.getItem("bipa:theme");
+      const dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    } catch { document.documentElement.dataset.theme = "light"; }
+  </script>
+  <link rel="stylesheet" href="./estilos.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="../" title="Volver al portal">
+      <img src="../logo.svg" alt="">
+      <span><strong>BIPA</strong><small>Cartera Inteligente</small></span>
+    </a>
+    <div class="topTitle"><h1>Informe gerencial</h1><p id="cutText">Abriendo datos…</p></div>
+    <a class="back" href="../#resumen-final">← Volver al portal</a>
+  </header>
+
+  <p id="loading" class="loading">Abriendo el paquete de datos cifrado…</p>
+
+  <section id="lock" class="lock" hidden>
+    <form id="lockForm" class="lockCard">
+      <h2>Acceso privado</h2>
+      <p>Escriba la clave del equipo. Es la misma del portal.</p>
+      <label for="lockPass" class="sr">Clave de acceso</label>
+      <input id="lockPass" type="password" autocomplete="current-password" placeholder="Clave de acceso">
+      <p id="lockMsg" class="lockMsg" role="alert"></p>
+      <button id="lockBtn" class="btn primary" type="submit">Entrar</button>
+      <small>Los datos se descifran solo en este navegador.</small>
+    </form>
+  </section>
+
+  <main id="app" class="layout" hidden>
+    <form id="form" class="panel" aria-label="Opciones del informe">
+      <fieldset>
+        <legend>1 · ¿Para quién es?</legend>
+        <label class="field"><span>Destinatario</span>
+          <select id="fAudience">
+            <option value="general">Gerencia general</option>
+            <option value="ventas">Gerencia de ventas</option>
+            <option value="cobranza">Cobranza</option>
+            <option value="vendedor">Un vendedor</option>
+          </select>
+        </label>
+        <div class="depth" role="radiogroup" aria-label="Profundidad">
+          <label><input type="radio" name="depth" value="ejecutivo"><span><b>Ejecutivo</b><small>1 página</small></span></label>
+          <label><input type="radio" name="depth" value="estandar" checked><span><b>Estándar</b><small>Por secciones</small></span></label>
+          <label><input type="radio" name="depth" value="completo"><span><b>Completo</b><small>Con anexos</small></span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>2 · Periodo</legend>
+        <label class="field"><span>Periodo del informe</span>
+          <select id="fPeriod">
+            <option value="ultimo">Último mes cerrado</option>
+            <option value="actual">Mes en curso</option>
+            <option value="trimestre">Último trimestre</option>
+            <option value="anio">Año a la fecha</option>
+            <option value="todo">Todo el historial</option>
+            <option value="rango">Elegir meses…</option>
+          </select>
+        </label>
+        <div id="rangeFields" class="two" hidden>
+          <label class="field"><span>Desde</span><select id="fFrom"></select></label>
+          <label class="field"><span>Hasta</span><select id="fTo"></select></label>
+        </div>
+        <p class="hint">Siempre se compara con el periodo anterior de la misma duración.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>3 · Recorte</legend>
+        <label class="field"><span>Vendedor</span><select id="fSeller"></select></label>
+        <label class="field"><span>Zona</span><select id="fZone"></select></label>
+        <label class="field"><span>Tipo de cliente</span><select id="fType"></select></label>
+        <label class="field"><span>Asignación</span>
+          <select id="fAssign"><option value="">Todas</option><option value="CONFIRMADO">Vendedor confirmado</option><option value="VACANTE">Vacantes / por confirmar</option></select>
+        </label>
+      </fieldset>
+
+      <details>
+        <summary>Umbrales de alerta</summary>
+        <label class="field"><span>Marcar en rojo una caída mayor a (%)</span><input id="fDrop" type="number" min="1" max="90" value="10"></label>
+        <label class="field"><span>Cliente a recuperar después de (días sin compra)</span><input id="fRisk" type="number" min="7" max="365" value="30"></label>
+        <label class="field"><span>Filas por tabla</span><input id="fTop" type="number" min="5" max="50" value="10"></label>
+        <label class="check"><input id="fFreight" type="checkbox"> Incluir fletes en productos</label>
+      </details>
+    </form>
+
+    <section class="preview" aria-live="polite">
+      <div class="pvHead">
+        <div><span class="eyebrow">Vista previa</span><h2 id="pvTitle"></h2><p id="pvMeta"></p></div>
+        <div class="actions">
+          <button id="waBtn" class="btn ghost" type="button">Copiar para WhatsApp</button>
+          <button id="pdfBtn" class="btn primary" type="button">Generar PDF</button>
+        </div>
+      </div>
+      <p id="pdfHint" class="hint"></p>
+      <textarea id="waFallback" class="waFallback" hidden readonly aria-label="Resumen para copiar"></textarea>
+      <div id="pvKpis" class="kpis"></div>
+      <div class="card">
+        <h3>Venta mensual</h3>
+        <div id="pvChart" class="chart"></div>
+        <p class="legend"><i class="lp"></i>Periodo del informe <i class="lc"></i>Periodo de comparación</p>
+      </div>
+      <div class="card">
+        <h3>Conclusiones clave</h3>
+        <ul id="pvConclusions" class="conclusions"></ul>
+      </div>
+      <div class="card">
+        <h3>Acciones recomendadas</h3>
+        <ul id="pvActions" class="actionsList"></ul>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden role="status"></div>
+
+  <script src="./vendor/jspdf.umd.min.js"></script>
+  <script src="./vendor/jspdf.plugin.autotable.min.js"></script>
+  <script src="./motor.js"></script>
+  <script src="./pdf.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
