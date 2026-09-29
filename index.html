@@ -15,10 +15,10 @@
       document.documentElement.dataset.theme = dark ? "dark" : "light";
     } catch { document.documentElement.dataset.theme = "light"; }
   </script>
-  <script type="module" crossorigin src="./app/main-E1iAn8j7.js"></script>
+  <script type="module" crossorigin src="./app/main-WZt2upAd.js"></script>
   <link rel="modulepreload" crossorigin href="./app/charts-DHG-3D5Z.js">
-  <link rel="modulepreload" crossorigin href="./app/format-vou8onlI.js">
-  <link rel="stylesheet" crossorigin href="./app/format-D7Yu0mDO.css">
+  <link rel="modulepreload" crossorigin href="./app/format-Bwh2UF0v.js">
+  <link rel="stylesheet" crossorigin href="./app/format-BuwOG7EF.css">
 </head>
 <body>
   <div class="app">
@@ -172,6 +172,28 @@
             <div class="monthChips" id="finalMonths"></div>
             <button class="button subtle" type="button" id="finalClearMonths">Ver todo</button>
             <a class="button primary" href="./informe/"><span data-icon="download"></span>Informe gerencial PDF</a>
+          </div>
+          <div class="filterBar card" id="finalFilterBar">
+            <div class="filterHead">
+              <button class="filterToggle" type="button" id="finalFilterToggle" aria-expanded="true"><span data-icon="filter"></span>Filtros y escenarios<em id="finalFilterCount"></em><span data-icon="chevron" class="chev"></span></button>
+              <label class="searchField"><span data-icon="search"></span><input id="finalSearch" type="search" placeholder="Cliente, código, zona…" autocomplete="off"></label>
+              <button class="button ghost" type="button" id="finalExport" data-tip="Descargar los clientes del escenario en CSV"><span data-icon="download"></span><span class="hideSm">Exportar</span></button>
+              <button class="button subtle" type="button" id="finalReset">Limpiar</button>
+            </div>
+            <div class="filterGrid" id="finalFilterGrid">
+              <label class="field"><span>Vendedor</span><select id="ffSeller"></select></label>
+              <label class="field"><span>Asignación</span><select id="ffAssignment"><option value="">Todos</option><option value="CONFIRMADO">Vendedor confirmado</option><option value="VACANTE">Vacante / por confirmar</option></select></label>
+              <label class="field"><span>Zona</span><select id="ffZone"></select></label>
+              <label class="field"><span>Tipo de cliente</span><select id="ffType"></select></label>
+              <label class="field"><span>Tiempo sin compra hoy</span><select id="ffSegment"></select></label>
+              <label class="field"><span>Situación hoy</span><select id="ffStatus"><option value="">Todos</option><option value="ACTIVO">Compra reciente</option><option value="INACTIVO">Sin compra reciente</option></select></label>
+              <label class="field"><span>Comportamiento en el periodo</span><select id="ffBehavior"><option value="">Todos los que compraron</option><option value="RECURRENTE">Compraron todos los meses elegidos</option><option value="OCASIONAL">Compraron un solo mes</option><option value="NUEVO">Nuevos: primera compra en el periodo</option><option value="DEJO">Dejaron de comprar al final del periodo</option></select></label>
+              <label class="field"><span>Escenario</span><select id="ffTopN"><option value="0">Todos los clientes</option><option value="10">Solo los 10 mayores</option><option value="20">Solo los 20 mayores</option><option value="50">Solo los 50 mayores</option><option value="100">Solo los 100 mayores</option></select></label>
+              <label class="field"><span>Venta mínima en el periodo</span><input id="ffMinSale" type="number" min="0" step="100" placeholder="$ 0"></label>
+              <label class="field"><span>Comparar con</span><select id="ffCompare"><option value="">Sin comparación</option><option value="anterior">El periodo anterior de igual duración</option></select></label>
+              <label class="field check"><span>Vendedor elegido</span><label class="switch"><input type="checkbox" id="ffExcludeSeller">Excluirlo en vez de incluirlo</label></label>
+            </div>
+            <div class="chips" id="finalChips"></div>
           </div>
           <div class="kpiGrid" id="finalKpis"></div>
           <article class="card insight" id="finalInsight"></article>
