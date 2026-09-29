@@ -352,6 +352,7 @@
     }
 
     return {
+      mode: "completo",
       declarations: Object.entries(tools).map(([name, t]) => ({ name, description: t.description, parameters: t.parameters })),
       run(name, args) {
         const t = tools[name];
@@ -361,5 +362,158 @@
     };
   }
 
-  global.BipaHerramientas = { create, norm, match };
+
+  /* ---------- Herramientas con el paquete del portal (data.enc) ----------
+     Mientras no esté publicado datos2.enc, el agente trabaja con los datos que ya usa el
+     portal: clientes con su historial mensual, saldos y artículos. No trae empresa por
+     factura ni fechas por día, así que esas preguntas se responden como no disponibles. */
+  function createBasic(getData, getPrivacy) {
+    const BI = global.BipaInforme;
+    const tr = (v) => String(v ?? "").trim(); // mismo criterio que el motor del portal
+    const num = (v) => { const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+    const fmtStub = {
+      money: (v) => `$${(Math.round((v || 0) * 100) / 100).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      moneyShort: (v) => `$${Math.round(v || 0).toLocaleString("es-VE")}`,
+      int: (v) => Math.round(v || 0).toLocaleString("es-VE"),
+      pct: (v) => (v == null || !Number.isFinite(v) ? "-" : `${(Math.round(v * 10) / 10).toLocaleString("es-VE")}%`),
+      kg: (v) => `${Math.round(v || 0).toLocaleString("es-VE")} kg`,
+      date: (d) => iso(d),
+    };
+    const priv = () => getPrivacy();
+    const info = () => BI.describeData(getData());
+    const person = (c) => {
+      if (priv() === "cifras") return null;
+      const o = { cliente: c.cliente, vendedor: c.vendedor, zona: c.zona };
+      if (priv() === "todo") { o.telefono = c.telefono || null; o.codigo = c.codigo || null; }
+      return o;
+    };
+    const people = (list, extra) => (priv() === "cifras" ? { nota: "Modo solo cifras: no se comparten nombres de clientes.", cantidad: list.length } : list.map((x) => ({ ...person(x.c || x), ...extra(x) })));
+    const NO_EMP = "Los datos publicados del portal no traen la empresa (GRUPO ERAS, AREZ, JMC) de cada factura. Ese detalle estará disponible cuando se publique el paquete del informe 2.0 (datos2.enc) a partir del Excel de facturación.";
+
+    function options(a) {
+      const I = info(), errors = [];
+      const pick = (list, q, label) => { if (!q) return ""; const v = match(list, q); if (!v) errors.push(`No encontré ${label} "${q}". Opciones: ${list.slice(0, 40).join(", ")}`); return v || ""; };
+      const o = {
+        period: ["ultimo", "actual", "trimestre", "anio", "todo", "rango"].includes(a.periodo) ? a.periodo : "ultimo", from: a.desde, to: a.hasta,
+        audience: "general", depth: "estandar", seller: pick(I.sellers, a.vendedor, "el vendedor"), zone: pick(I.zones, a.zona, "la zona"), type: pick(I.types, a.tipo_cliente, "el tipo de cliente"),
+        assignment: a.asignacion === "vacante" ? "VACANTE" : a.asignacion === "confirmado" ? "CONFIRMADO" : "", riskDays: clamp(a.dias_riesgo || 30, 7, 365), topN: clamp(a.limite || 15, 1, 60), dropAlert: 10, freight: !!a.incluir_fletes,
+      };
+      return { o, errors };
+    }
+    const build = (a) => { const { o, errors } = options(a || {}); if (errors.length) return { error: errors.join(" ") }; if (a && a.empresa) return { error: NO_EMP }; return { m: BI.build(getData(), o, fmtStub) }; };
+    const header = (m) => ({ periodo: m.periodLabel, comparado_con: m.hasC ? m.compareLabel : "sin comparación", filtros: m.filters.length ? m.filters : ["toda la cartera"], datos_al: m.info.cut ? iso(m.info.cut) : null, fuente: "datos publicados del portal (resolución mensual)" });
+    const props = (extra) => ({
+      periodo: { type: "string", enum: ["ultimo", "actual", "trimestre", "anio", "todo", "rango"], description: "ultimo = último mes cerrado (por defecto); actual = mes en curso; trimestre; anio = año a la fecha; todo; rango = desde/hasta." },
+      desde: { type: "string", description: "Mes AAAA-MM (con rango)." }, hasta: { type: "string", description: "Mes AAAA-MM (con rango)." },
+      vendedor: { type: "string" }, zona: { type: "string" }, tipo_cliente: { type: "string" },
+      asignacion: { type: "string", enum: ["confirmado", "vacante"], description: "Clientes con vendedor confirmado o vacantes/por confirmar." },
+      empresa: { type: "string", description: "No disponible con los datos actuales del portal." },
+      limite: { type: "integer" }, ...(extra || {}),
+    });
+    // Venta de un cliente en un conjunto de meses, desde su historial mensual
+    const inMonths = (c, set) => (c.historial_mensual || []).reduce((a, h) => (set.has(h.mes) ? { v: a.v + num(h.venta_total), d: a.d + num(h.documentos) } : a), { v: 0, d: 0 });
+
+    const tools = {
+      info_datos: {
+        description: "Describe los datos disponibles: fecha de corte, meses, vendedores, zonas, tipos de cliente, cantidad de clientes y qué detalle NO está disponible todavía.",
+        parameters: { type: "object", properties: {} },
+        run() {
+          const I = info(), d = getData();
+          return { fuente: "datos publicados del portal (data.enc)", datos_al: I.cut ? iso(I.cut) : null, meses: I.months, mes_en_curso_incompleto: I.lastIsPartial, vendedores: I.sellers, zonas: I.zones, tipos_cliente: I.types, clientes_en_cartera: (d.detail || []).length, productos: (d.articulos || []).length, no_disponible: ["empresa de cada factura", "fechas por día (solo por mes)", "antigüedad del saldo por tramos", "productos por cliente"], privacidad: priv() };
+        },
+      },
+      resumen_general: {
+        description: "Resumen gerencial del periodo con filtros por vendedor, zona, tipo de cliente o asignación: venta, variación, clientes que compraron, activación, ticket, nuevos, perdidos, saldo y vencido, conclusiones y acciones.",
+        parameters: { type: "object", properties: props() },
+        run(a) {
+          const b = build(a); if (b.error) return b; const m = b.m, k = m.kpis;
+          return { ...header(m), indicadores: { venta: r2(k.sales), venta_anterior: m.hasC ? r2(k.salesC) : null, variacion_venta_pct: r1(k.salesChange), proyeccion_cierre_mes: m.projection ? r2(m.projection.value) : null, clientes_que_compraron: k.buyers, clientes_en_cartera: k.cartera, activacion_pct: r1(k.effectiveness), facturas: k.docs, ticket_por_factura: r2(k.ticket), clientes_nuevos: k.newClients, dejaron_de_comprar: m.hasC ? k.lost : null, venta_mensual_de_los_que_dejaron: r2(k.lostMonthly), kg: Math.round(k.kgP || 0), saldo_por_cobrar: r2(k.saldo), saldo_vencido: r2(k.vencido), vencido_pct: r1(k.vencidoShare) },
+            conclusiones: m.conclusions.map((c) => c.text), acciones: m.actions.map((x) => ({ responsable: x.who, accion: x.text, monto: r2(x.value), referencia: x.valueLabel || null })) };
+        },
+      },
+      ventas_por: {
+        description: "Ranking de venta del periodo por vendedor, zona, producto o cliente, con venta anterior, variación y participación. Para vendedor y zona también cartera, clientes que compraron, activación y vencido.",
+        parameters: { type: "object", properties: props({ dimension: { type: "string", enum: ["vendedor", "zona", "producto", "cliente", "empresa"] }, orden: { type: "string", enum: ["mayor_venta", "mayor_caida", "mayor_crecimiento"] } }), required: ["dimension"] },
+        run(a) {
+          if (a.dimension === "empresa") return { error: NO_EMP };
+          const b = build(a); if (b.error) return b; const m = b.m, lim = clamp(a.limite || 15, 1, 60);
+          let rows;
+          if (a.dimension === "vendedor" || a.dimension === "zona") rows = (a.dimension === "vendedor" ? m.sellers : m.zones).map((s) => ({ nombre: s.name, venta: r2(s.vP), venta_anterior: r2(s.vC), variacion_pct: r1(s.change), participacion_pct: r1(s.share), cartera: s.cartera, clientes_que_compraron: s.buyers, activacion_pct: r1(s.eff), saldo: r2(s.saldo), vencido: r2(s.vencido) }));
+          else if (a.dimension === "producto") rows = m.products.concat(a.orden === "mayor_caida" ? m.productDrops.filter((p) => p.vP === 0) : []).map((p) => ({ nombre: p.name, venta: r2(p.vP), venta_anterior: r2(p.vC), variacion_pct: r1(p.change), participacion_pct: r1(p.share), unidades: r2(p.uP), kg: Math.round(p.kgP || 0) }));
+          else if (a.dimension === "cliente") {
+            if (priv() === "cifras") return { error: "Modo solo cifras: no se pueden listar clientes por nombre." };
+            const P = new Set(m.P), C = new Set(m.C || []);
+            rows = (getData().detail || []).filter((c) => (!m.options.seller || tr(c.vendedor) === m.options.seller) && (!m.options.zone || tr(c.zona) === m.options.zone) && (!m.options.type || tr(c.tipo_cliente) === m.options.type) && (!m.options.assignment || c.estado_asignacion === m.options.assignment))
+              .map((c) => { const p = inMonths(c, P), q = inMonths(c, C); return { ...person(c), venta: r2(p.v), venta_anterior: r2(q.v), variacion_pct: q.v > 0 ? r1(((p.v - q.v) / q.v) * 100) : null, facturas: p.d }; }).filter((x) => x.venta > 0 || x.venta_anterior > 0);
+          } else return { error: "Dimensión no válida." };
+          if (a.orden === "mayor_caida") rows = rows.filter((x) => x.venta_anterior > 0).sort((x, y) => (x.venta - x.venta_anterior) - (y.venta - y.venta_anterior));
+          else if (a.orden === "mayor_crecimiento") rows.sort((x, y) => (y.venta - (y.venta_anterior || 0)) - (x.venta - (x.venta_anterior || 0)));
+          else rows.sort((x, y) => y.venta - x.venta);
+          return { ...header(m), total_venta: r2(m.kpis.sales), total_filas: rows.length, filas: rows.slice(0, lim), ...(a.dimension === "producto" ? { nota: "Los productos son totales de toda la empresa: estos datos no vinculan productos con vendedor, zona o cliente." } : {}) };
+        },
+      },
+      serie_mensual: {
+        description: "Venta, facturas y clientes mes a mes de todo el historial, con filtros por vendedor, zona, tipo de cliente o asignación.",
+        parameters: { type: "object", properties: { vendedor: { type: "string" }, zona: { type: "string" }, tipo_cliente: { type: "string" }, asignacion: { type: "string", enum: ["confirmado", "vacante"] } } },
+        run(a) {
+          const { o, errors } = options(a || {}); if (errors.length) return { error: errors.join(" ") };
+          const d = getData(), I = info(), by = new Map();
+          (d.detail || []).forEach((c) => {
+            if ((o.seller && tr(c.vendedor) !== o.seller) || (o.zone && tr(c.zona) !== o.zone) || (o.type && tr(c.tipo_cliente) !== o.type)) return;
+            if (o.assignment && c.estado_asignacion !== o.assignment) return;
+            (c.historial_mensual || []).forEach((h) => { const x = by.get(h.mes) || { v: 0, d: 0, c: 0 }; x.v += num(h.venta_total); x.d += num(h.documentos); if (num(h.venta_total) > 0) x.c++; by.set(h.mes, x); });
+          });
+          return { datos_al: I.cut ? iso(I.cut) : null, meses: I.months.map((mo) => ({ mes: mo, venta: r2((by.get(mo) || {}).v || 0), facturas: (by.get(mo) || {}).d || 0, clientes: (by.get(mo) || {}).c || 0, incompleto: mo === I.last && I.lastIsPartial ? true : undefined })) };
+        },
+      },
+      listas: {
+        description: "Listas de gestión: recuperar (clientes habituales que llevan más de N días sin comprar, con su compra mensual promedio), perdidos (compraban en el periodo anterior y no en este), deudores (mayor saldo vencido), segmentos (clientes por tiempo sin compra), productos_bajaron.",
+        parameters: { type: "object", properties: props({ lista: { type: "string", enum: ["recuperar", "perdidos", "deudores", "segmentos", "productos_bajaron"] }, dias_riesgo: { type: "integer", description: "Días sin compra para considerar a recuperar (por defecto 30)." } }), required: ["lista"] },
+        run(a) {
+          const b = build(a); if (b.error) return b; const m = b.m, lim = clamp(a.limite || 15, 1, 60);
+          const out = (data, extra) => ({ ...header(m), ...(extra || {}), resultado: data });
+          switch (a.lista) {
+            case "recuperar": return out(people(m.recover.slice(0, lim), (x) => ({ dias_sin_comprar: num(x.c.dias_sin_facturar), meses_con_compra: x.buyMonths, compra_mensual_promedio: r2(x.avgMonthly), ultima_factura: x.c.ultima_factura || null })), { total_clientes: m.recover.length, compra_mensual_total: r2(m.recover.reduce((s, x) => s + x.avgMonthly, 0)) });
+            case "perdidos": return out(people(m.lostList.slice(0, lim), (x) => ({ compra_periodo_anterior: r2(x.vC), dias_sin_comprar: num(x.c.dias_sin_facturar) })), { total_clientes: m.kpis.lost });
+            case "deudores": return out(people(m.debtors.slice(0, lim), (c) => ({ saldo: r2(num(c.saldo_total)), vencido: r2(num(c.saldo_vencido)), dias_sin_comprar: num(c.dias_sin_facturar) })), { saldo_total: r2(m.kpis.saldo), vencido_total: r2(m.kpis.vencido), nota: "La antigüedad por tramos (30/60/90 días) estará disponible con el paquete 2.0." });
+            case "segmentos": return out(m.segments.map((s) => ({ segmento: s.label, clientes: s.count, pct_cartera: r1(s.share), venta_historica: r2(s.sales) })));
+            case "productos_bajaron": return out(m.productDrops.slice(0, lim).map((p) => ({ producto: p.name, antes: r2(p.vC), ahora: r2(p.vP), diferencia: r2(p.delta) })));
+            default: return { error: "Lista no disponible con los datos actuales del portal. " + NO_EMP };
+          }
+        },
+      },
+      buscar_cliente: {
+        description: "Ficha de un cliente por nombre (acepta nombre parcial): vendedor, zona, tipo, asignación, estado, última factura, días sin comprar, venta total, facturas, saldo, vencido e historial de venta mes a mes.",
+        parameters: { type: "object", properties: { nombre: { type: "string" } }, required: ["nombre"] },
+        run(a) {
+          if (priv() === "cifras") return { error: "Modo solo cifras: no se consultan clientes por nombre." };
+          const list = getData().detail || [];
+          const found = search(list.map((c) => c.cliente), a.nombre, 8);
+          if (!found.length) return { error: `No encontré clientes con "${a.nombre}".` };
+          if (found.length > 1 && norm(found[0].name) !== norm(a.nombre) && found[1].s >= found[0].s - 50) return { varios_resultados: found.map((f) => ({ cliente: list[f.i].cliente, zona: list[f.i].zona, vendedor: list[f.i].vendedor })), nota: "Pida al usuario que elija uno o use el nombre completo." };
+          const c = list[found[0].i];
+          return { ...person(c), tipo_cliente: c.tipo_cliente, asignacion: c.estado_asignacion, estado: c.estado_facturacion, segmento: c.segmento, ultima_factura: c.ultima_factura, dias_sin_comprar: num(c.dias_sin_facturar), venta_total: r2(num(c.venta_total)), facturas: num(c.documentos), saldo: r2(num(c.saldo_total)), vencido: r2(num(c.saldo_vencido)), venta_por_mes: (c.historial_mensual || []).map((h) => ({ mes: h.mes, venta: r2(num(h.venta_total)), facturas: num(h.documentos) })), datos_al: info().cut ? iso(info().cut) : null, nota: "Sin detalle de productos ni empresa por cliente en los datos actuales." };
+        },
+      },
+      buscar_producto: {
+        description: "Ficha de un producto por nombre (acepta nombre parcial): venta, unidades y peso totales e historial mes a mes (totales de toda la empresa).",
+        parameters: { type: "object", properties: { nombre: { type: "string" } }, required: ["nombre"] },
+        run(a) {
+          const list = getData().articulos || [];
+          const found = search(list.map((p) => p.producto), a.nombre, 10);
+          if (!found.length) return { error: `No encontré productos con "${a.nombre}".` };
+          if (found.length > 1 && norm(found[0].name) !== norm(a.nombre) && found[1].s >= found[0].s - 50) return { varios_resultados: found.map((f) => f.name), nota: "Pida al usuario que elija uno o use el nombre completo." };
+          const p = list[found[0].i];
+          return { producto: p.producto, venta_total: r2(num(p.venta_total)), unidades: r2(num(p.unidades)), kg: Math.round(num(p.peso_total)), por_mes: (p.historial_mensual || []).map((h) => ({ mes: h.mes, venta: r2(num(h.venta_total)), unidades: r2(num(h.unidades)), kg: Math.round(num(h.peso_total)) })), nota: "Totales de toda la empresa; sin detalle por cliente, vendedor o empresa en los datos actuales." };
+        },
+      },
+    };
+    return {
+      mode: "basico",
+      declarations: Object.entries(tools).map(([name, t]) => ({ name, description: t.description, parameters: t.parameters })),
+      run(name, args) { const t = tools[name]; if (!t) return { error: `Herramienta no disponible con los datos actuales del portal: ${name}. ${NO_EMP}` }; try { return t.run(args || {}); } catch (e) { console.error(e); return { error: `Falló el cálculo: ${e.message}` }; } },
+    };
+  }
+
+  global.BipaHerramientas = { create, createBasic, norm, match };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -7,7 +7,7 @@
   const $ = (s) => document.querySelector(s);
   const te = new TextEncoder();
   const MODULE = "activacion";
-  const DATA2_URL = "../informe/datos2.enc";
+  const DATA2_URL = "../informe/datos2.enc", DATA1_URL = "../data.enc";
   const K_GEMINI = "bipa:gemini-key", K_MODEL = "bipa:gemini-model", K_PRIV = "bipa:asistente-privacidad";
   const DEFAULT_MODEL = "gemini-3.8-flash";
   const MAX_ROUNDS = 8;
@@ -26,17 +26,25 @@
     const base = await crypto.subtle.importKey("raw", te.encode(String(pass).normalize("NFKC")), "PBKDF2", false, ["deriveKey"]);
     return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 310000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
   }
-  let bytes = null;
+  // Usa datos2.enc (informe 2.0, detalle por factura) si está publicado; si no, el
+  // data.enc del portal (resolución mensual). Solo si no hay ninguno pide el Excel.
+  let bytes2 = null, bytes1 = null, fetched = false;
+  const fetchBytes = async (url) => { const r = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return new Uint8Array(await r.arrayBuffer()); };
+  async function openV1(b, key) {
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.subarray(0, 12) }, key, b.subarray(12));
+    const text = await new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+    const data = JSON.parse(text);
+    if (!data || !Array.isArray(data.detail) || !data.detail.length) throw new Error("El paquete de datos no trae clientes para analizar.");
+    return data;
+  }
   async function openData(key) {
-    if (!bytes) {
-      const r = await fetch(`${DATA2_URL}?t=${Date.now()}`, { cache: "no-store" });
-      if (!r.ok) throw Object.assign(new Error("nodata"), { nodata: true });
-      bytes = new Uint8Array(await r.arrayBuffer());
-    }
-    return BipaDatos.open(bytes, key);
+    if (!fetched) { [bytes2, bytes1] = await Promise.all([fetchBytes(DATA2_URL).catch(() => null), fetchBytes(DATA1_URL).catch(() => null)]); fetched = true; }
+    if (!bytes2 && !bytes1) throw Object.assign(new Error("nodata"), { nodata: true });
+    if (bytes2) DS = await BipaDatos.open(bytes2, key);
+    else DATA1 = await openV1(bytes1, key);
   }
 
-  let DS = null, TOOLS = null, HISTORY = [], BUSY = false;
+  let DS = null, DATA1 = null, TOOLS = null, HISTORY = [], BUSY = false, BOUND = false;
   const privacy = () => store.get(K_PRIV) || "nombres";
 
   async function start() {
@@ -44,7 +52,7 @@
     if (saved) {
       try {
         const key = await crypto.subtle.importKey("raw", b64(saved), "AES-GCM", true, ["encrypt", "decrypt"]);
-        DS = await openData(key);
+        await openData(key);
         return ready();
       } catch (e) { if (e.nodata) return noData(); }
     }
@@ -59,7 +67,7 @@
       btn.disabled = true; btn.textContent = "Abriendo…"; msg.textContent = "";
       try {
         const key = await deriveKey(pass);
-        DS = await openData(key);
+        await openData(key);
         store.set("bipa:key", toB64(await crypto.subtle.exportKey("raw", key)));
         $("#lock").hidden = true; ready();
       } catch (e) {
@@ -78,13 +86,29 @@
       catch (e) { st.textContent = e.message || "No se pudo leer el Excel."; }
     });
   }
+  // En modo básico se puede cargar el Excel para pasar al detalle completo (solo en este navegador).
+  async function loadExcel(ev) {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    try {
+      DS = await BipaDatos.buildFromExcel(await f.arrayBuffer(), (m) => toast(m));
+      HISTORY = []; $("#log").innerHTML = ""; $("#welcome").hidden = false;
+      ready(); toast("Excel cargado: el asistente ya tiene el detalle completo.");
+    } catch (e) { toast(e.message || "No se pudo leer el Excel.", true); }
+    ev.target.value = "";
+  }
 
   /* ---------- Chat ---------- */
   function ready() {
     $("#loading").hidden = true; $("#chat").hidden = false;
-    TOOLS = BipaHerramientas.create(() => DS, privacy);
-    const info = BipaInforme2.describe(DS);
-    $("#cutText").textContent = `Datos al ${info.cut.toLocaleDateString("es-VE", { timeZone: "UTC" })} · ${info.empresas.length} empresas · ${info.lines.toLocaleString("es-VE")} líneas`;
+    TOOLS = DS ? BipaHerramientas.create(() => DS, privacy) : BipaHerramientas.createBasic(() => DATA1, privacy);
+    const c = context();
+    $("#cutText").textContent = DS ? `Datos al ${fmtDate(c.cut)} · ${c.empresas.length} empresas · ${c.lines.toLocaleString("es-VE")} líneas`
+      : `Datos del portal al ${fmtDate(c.cut)} · ${c.clients.toLocaleString("es-VE")} clientes · por mes`;
+    $("#basicBar").hidden = !!DS;
+    document.querySelectorAll(".chip[data-full]").forEach((b) => { b.hidden = !DS; });
+    document.querySelectorAll(".chip[data-basic]").forEach((b) => { b.hidden = !!DS; });
+    if (BOUND) return;
+    BOUND = true;
     $("#fModel").value = store.get(K_MODEL) || DEFAULT_MODEL;
     $("#fPriv").value = privacy();
     $("#fKey").value = store.get(K_GEMINI) || "";
@@ -96,6 +120,7 @@
     $("#settings").addEventListener("submit", (e) => { e.preventDefault(); saveSettings(); });
     $("#forgetKey").addEventListener("click", () => { store.del(K_GEMINI); $("#fKey").value = ""; toast("Llave borrada de este navegador."); });
     $("#testBtn").addEventListener("click", runTest);
+    $("#xlsMore").addEventListener("change", loadExcel);
     $("#newChat").addEventListener("click", () => { HISTORY = []; $("#log").innerHTML = ""; $("#welcome").hidden = false; $("#askInput").focus(); });
     $("#askInput").focus();
   }
@@ -199,12 +224,22 @@
     return { answer: "", used };
   }
 
+  const fmtDate = (iso) => (iso ? iso.split("-").reverse().join("/") : "sin fecha");
+  // Datos que el manual del agente necesita, según el paquete abierto
+  function context() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (DS) {
+      const info = BipaInforme2.describe(DS);
+      return { mode: "completo", empresas: info.empresas, cut: info.cut.toISOString().slice(0, 10), first: BipaInforme2.dayToDate(info.minDay).toISOString().slice(0, 10),
+        partial: info.partial, clients: info.clientsCount, lines: info.lines, today, privacy: privacy() };
+    }
+    const I = BipaInforme.describeData(DATA1);
+    return { mode: "basico", empresas: [], cut: I.cut ? I.cut.toISOString().slice(0, 10) : null, first: I.months[0] || null, lastMonth: I.last,
+      partial: I.lastIsPartial, clients: DATA1.detail.length, products: (DATA1.articulos || []).length, today, privacy: privacy() };
+  }
+
   async function callGemini(key, history) {
-    const info = BipaInforme2.describe(DS);
-    const system = BipaContexto({
-      empresas: info.empresas, cut: info.cut.toISOString().slice(0, 10), first: BipaInforme2.dayToDate(info.minDay).toISOString().slice(0, 10),
-      partial: info.partial, clients: info.clientsCount, lines: info.lines, today: new Date().toISOString().slice(0, 10), privacy: privacy(),
-    });
+    const system = BipaContexto(context());
     const model = store.get(K_MODEL) || DEFAULT_MODEL;
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
