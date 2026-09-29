@@ -153,7 +153,7 @@
     const pending = addMsg("bot", `<span class="typing">Consultando los datos…</span>`);
     const base = HISTORY.length;
     try {
-      const { answer: raw, used } = await agentTurn(HISTORY, text, key, (label) => { pending.querySelector(".typing").textContent = `Consultando ${label}…`; });
+      const { answer: raw, used } = await agentTurn(HISTORY, text, key, (label, raw) => { pending.querySelector(".typing").textContent = raw ? label : `Consultando ${label}…`; });
       let answer = raw;
       if (!answer) answer = "No logré completar la respuesta con los datos. Intente con una pregunta más concreta.";
       const tags = [...new Set(used)];
@@ -209,7 +209,7 @@
     history.push({ role: "user", parts: [{ text }] });
     const used = [];
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const content = await callGemini(key, history);
+      const content = await callGemini(key, history, (m) => onTool && onTool(m, true));
       history.push(content);
       const calls = (content.parts || []).filter((p) => p.functionCall);
       if (!calls.length) return { answer: (content.parts || []).filter((p) => p.text && !p.thought).map((p) => p.text).join("").trim(), used };
@@ -238,7 +238,21 @@
       partial: I.lastIsPartial, clients: DATA1.detail.length, products: (DATA1.articulos || []).length, today, privacy: privacy() };
   }
 
-  async function callGemini(key, history) {
+  // Gemini gratuito a veces responde "alta demanda" (503) o falla por un momento:
+  // se reintenta solo, con esperas crecientes, antes de mostrar el error.
+  const RETRY_WAITS = [3000, 8000, 15000];
+  const busy = (res, msg) => res.status === 500 || res.status === 503 || /high demand|overloaded|unavailable/i.test(msg || "");
+  async function callGemini(key, history, note) {
+    for (let i = 0; ; i++) {
+      try { return await callGeminiOnce(key, history); }
+      catch (e) {
+        if (!e.retry || i >= RETRY_WAITS.length) throw e;
+        if (note) note(`Gemini está ocupado; reintentando (${i + 1} de ${RETRY_WAITS.length})…`);
+        await sleep(RETRY_WAITS[i]);
+      }
+    }
+  }
+  async function callGeminiOnce(key, history) {
     const system = BipaContexto(context());
     const model = store.get(K_MODEL) || DEFAULT_MODEL;
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -257,7 +271,9 @@
     if (!res.ok) {
       const msg = body && body.error && body.error.message ? body.error.message : `HTTP ${res.status}`;
       const e = new Error(msg);
-      e.userMessage = res.status === 429 ? "Se alcanzó el límite gratuito de Gemini por ahora. Espere un minuto e intente de nuevo."
+      e.retry = busy(res, msg);
+      e.userMessage = e.retry ? "Gemini está saturado en este momento (plan gratuito). Espere un minuto y vuelva a enviar la pregunta."
+        : res.status === 429 ? "Se alcanzó el límite gratuito de Gemini por ahora. Espere un minuto e intente de nuevo."
         : res.status === 400 && /API key/i.test(msg) ? "La llave de Gemini no es válida. Revísela en Configuración."
         : res.status === 403 ? "La llave de Gemini no tiene permiso para este modelo. Revísela en Configuración."
         : res.status === 404 ? `El modelo "${model}" no existe o no está disponible. Cámbielo en Configuración.`
