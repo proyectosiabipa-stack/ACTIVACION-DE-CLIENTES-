@@ -14,9 +14,9 @@
       document.documentElement.dataset.theme = dark ? "dark" : "light";
     } catch { document.documentElement.dataset.theme = "light"; }
   </script>
-  <script type="module" crossorigin src="../app/comparativo-BTdStdE8.js"></script>
+  <script type="module" crossorigin src="../app/comparativo-M6CgKwF4.js"></script>
   <link rel="modulepreload" crossorigin href="../app/charts-DHG-3D5Z.js">
-  <link rel="modulepreload" crossorigin href="../app/format-BMxTBNit.js">
+  <link rel="modulepreload" crossorigin href="../app/format-Bz6la1bD.js">
   <link rel="stylesheet" crossorigin href="../app/format-BuwOG7EF.css">
   <link rel="stylesheet" crossorigin href="../app/comparativo-oIDnu0LH.css">
 </head>
@@ -86,13 +86,13 @@
 
         <section class="view" data-view="proyeccion" hidden>
           <article class="card">
-            <div class="cardHead"><div><h3>Ventas hasta diciembre</h3><p>Real, escenario base y rango entre el conservador y el optimista</p></div></div>
+            <div class="cardHead"><div><h3>¿Cuánto vamos a vender de aquí a diciembre?</h3><p>Línea verde: lo real de este año. Línea punteada: lo más probable. Franja: entre el peor y el mejor caso</p></div></div>
             <div class="chart" id="chartProyeccion"></div>
             <div class="reading" id="proyeccionResumen"></div>
           </article>
-          <article class="card flush"><div class="cardHead pad"><div><h3>Escenarios mes a mes</h3><p>Venta estimada de cada mes y cierre del año</p></div></div><div class="tableWrap" id="tablaProyeccion"></div></article>
-          <article class="card flush"><div class="cardHead pad"><div><h3>Prueba de acierto</h3><p>Qué habría dicho el método en cada mes ya cerrado, usando solo lo que se sabía antes</p></div></div><div class="tableWrap" id="tablaBacktest"></div><p class="reading pad" id="backtestResumen"></p></article>
-          <article class="card notice"><h3>Producción estimada de parafina</h3><p>Pendiente: necesita los kilos de parafina por unidad de cada producto. Los kilos que traen hoy las facturas no son confiables, así que no se estima producción con ellos.</p></article>
+          <article class="card flush"><div class="cardHead pad"><div><h3>Tres escenarios, mes a mes</h3><p>Cuánto venderíamos cada mes según cómo siga el ritmo, y en cuánto cerraría el año</p></div></div><div class="tableWrap" id="tablaProyeccion"></div></article>
+          <article class="card flush"><div class="cardHead pad"><div><h3>¿Qué tan confiable es?</h3><p>Probamos el método con los meses que ya pasaron: qué habría estimado y qué vendimos de verdad</p></div></div><div class="tableWrap" id="tablaBacktest"></div><p class="reading pad" id="backtestResumen"></p></article>
+          <article class="card notice"><h3>¿Cuántos kilos de parafina hay que producir?</h3><p>Todavía no se puede calcular: falta saber cuántos kilos de parafina lleva cada producto. En cuanto tengamos esa tabla, aquí aparecerá la producción estimada de cada mes.</p></article>
         </section>
 
       </main>
